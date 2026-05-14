@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   { label: "Dashboard",       icon: "ri-layout-grid-line",      href: "/dashboard/farmer" },
@@ -14,10 +14,15 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  function handleLogout() {
+    router.push("/signup/farmer");
+  }
 
   return (
-    <aside className="w-60 shrink-0 bg-white border-r border-[#E0D5B7] min-h-screen">
-      <nav className="pt-4 px-3">
+    <aside className="w-60 shrink-0 bg-white border-r border-[#E0D5B7] flex flex-col">
+      <nav className="pt-4 px-3 flex-1">
         {navItems.map((item) => {
           const active = pathname === item.href;
           return (
@@ -36,6 +41,16 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="px-3 py-4 border-t border-[#E0D5B7]">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+        >
+          <i className="ri-logout-box-r-line text-lg" />
+          Log Out
+        </button>
+      </div>
     </aside>
   );
 }

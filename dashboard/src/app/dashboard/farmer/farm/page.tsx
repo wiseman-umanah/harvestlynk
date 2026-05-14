@@ -1,13 +1,24 @@
+"use client";
+import { useState } from "react";
+import ListProductModal from "@/components/ListProductModal";
+
 export default function MyFarm() {
+  const [showModal, setShowModal] = useState(false);
+
   return (
     <div className="space-y-6">
+      {showModal && <ListProductModal onClose={() => setShowModal(false)} />}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My Farm</h1>
           <p className="text-[#40493D] mt-1">Manage your agricultural inventory and verified listings.</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors">
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors"
+        >
           <i className="ri-add-line" /> List New Product
         </button>
       </div>

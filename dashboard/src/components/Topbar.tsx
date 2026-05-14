@@ -1,11 +1,20 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 export default function Topbar() {
+  const pathname = usePathname();
+  const notificationsHref = pathname.startsWith("/dashboard/buyer")
+    ? "/dashboard/buyer/notifications"
+    : "/dashboard/farmer/notifications";
+
   return (
     <header className="h-16 flex items-center justify-between px-8 bg-white border-b border-[#E0D5B7] shrink-0">
       <span className="text-lg font-bold text-gray-900">Harvestlynk</span>
       <div className="flex items-center gap-3">
-        <button className="relative text-gray-500 hover:text-gray-800">
+        <Link href={notificationsHref} className="relative text-gray-500 hover:text-gray-800">
           <i className="ri-notification-3-line text-xl" />
-        </button>
+        </Link>
         <button className="text-gray-500 hover:text-gray-800">
           <i className="ri-wallet-3-line text-xl" />
         </button>
