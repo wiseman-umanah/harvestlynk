@@ -7,7 +7,7 @@ export default function FarmerLayout({ children }: { children: React.ReactNode }
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f0] p-8">
+        <main className="flex-1 overflow-y-auto bg-white p-8">
           {children}
         </main>
       </div>

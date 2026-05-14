@@ -17,7 +17,7 @@ export default function Wallet() {
         {/* Left col */}
         <div className="col-span-2 space-y-4">
           {/* Available balance */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase mb-2">Available for Withdrawal</p>
             <div className="flex items-center gap-3">
               <p className="text-4xl font-bold text-[#0D631B]">₦127,500.00</p>
@@ -29,7 +29,7 @@ export default function Wallet() {
           </div>
 
           {/* Request Payout */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900 mb-5">Request Payout</h2>
 
             <p className="text-sm font-medium text-gray-700 mb-3">Select Bank Account</p>
@@ -75,7 +75,7 @@ export default function Wallet() {
         {/* Right col */}
         <div className="space-y-4">
           {/* Settlement Policy */}
-          <div className="bg-[#0D631B] rounded-2xl p-5 text-white">
+          <div className="bg-[#0D631B] rounded-2xl shadow-sm p-5 text-white">
             <p className="font-semibold flex items-center gap-2 mb-3">
               <i className="ri-information-line" /> Settlement Policy
             </p>
@@ -100,7 +100,7 @@ export default function Wallet() {
           </div>
 
           {/* Recent Withdrawals */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900 text-sm">Recent Withdrawals</h3>
               <button className="text-[#0D631B] text-xs font-medium hover:underline">View All</button>

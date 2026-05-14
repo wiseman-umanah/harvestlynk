@@ -5,7 +5,7 @@ export default function MyFarm() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">My Farm</h1>
-          <p className="text-gray-500 mt-1">Manage your agricultural inventory and verified listings.</p>
+          <p className="text-[#40493D] mt-1">Manage your agricultural inventory and verified listings.</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors">
           <i className="ri-add-line" /> List New Product
@@ -19,7 +19,7 @@ export default function MyFarm() {
           { icon: "ri-currency-line", iconBg: "bg-amber-100", iconColor: "text-amber-600", label: "Total Value of Inventory", value: "₦4,250,000" },
           { icon: "ri-shield-line", iconBg: "bg-blue-100", iconColor: "text-blue-600", label: "Pending Verification", value: "3 Pending" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border border-gray-100 flex items-center gap-4">
+          <div key={s.label} className="rounded-2xl p-8 border border-gray-100 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-xl ${s.iconBg} flex items-center justify-center flex-shrink-0`}>
               <i className={`${s.icon} ${s.iconColor} text-xl`} />
             </div>

@@ -17,17 +17,13 @@ export default function FarmerSignup() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left: image */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#0D631B] to-[#1a8c2e] items-center justify-center">
-        <div className="text-center text-white px-12">
-          <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-6">
-            <i className="ri-plant-line text-5xl text-white" />
-          </div>
-          <h2 className="text-3xl font-bold mb-3">Join as a Farmer</h2>
-          <p className="text-green-200 text-sm leading-relaxed">
-            Connect with buyers across Nigeria. Get paid securely through our escrow system and grow your agricultural business.
-          </p>
-        </div>
+      {/* Left: image blended with green */}
+      <div className="hidden lg:flex w-1/2 relative bg-[#0D631B] items-end justify-start overflow-hidden">
+        <img
+          src="/signup.png"
+          alt="Farmer"
+          className="absolute inset-0 w-full h-full object-cover mix-blend-multiply"
+        />
       </div>
 
       {/* Right: form */}

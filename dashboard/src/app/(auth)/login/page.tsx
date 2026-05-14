@@ -26,15 +26,26 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen flex">
       <Suspense>
         <RoleDetector onRole={setRole} />
       </Suspense>
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-8">
-          <h1 className="text-2xl font-bold text-center text-[#0D631B] mb-1">FarmConnect</h1>
-          <h2 className="text-xl font-bold text-center text-gray-900 mb-1">Welcome Back</h2>
-          <p className="text-gray-400 text-center text-sm mb-7">
+
+      {/* Left: image blended with green */}
+      <div className="hidden lg:flex w-1/2 relative bg-[#0D631B] items-end justify-start overflow-hidden">
+        <img
+          src="/signup.png"
+          alt="Farm"
+          className="absolute inset-0 w-full h-full object-cover mix-blend-multiply"
+        />
+      </div>
+
+      {/* Right: form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
+        <div className="w-full max-w-md">
+          <h1 className="text-2xl font-bold text-[#0D631B] mb-1">FarmConnect</h1>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome Back</h2>
+          <p className="text-gray-400 text-sm mb-7">
             Securely access your marketplace as a {role === "buyer" ? "Buyer" : "Farmer"}
           </p>
 
@@ -108,15 +119,15 @@ export default function Login() {
             {"Don't have an account? "}
             <Link href="/signup/farmer" className="text-[#e8a000] font-semibold hover:underline">Create an Account</Link>
           </p>
-        </div>
 
-        <div className="border-t border-gray-100 py-4 text-center">
-          <button
-            onClick={() => setRole(role === "buyer" ? "farmer" : "buyer")}
-            className="text-sm text-[#0D631B] font-semibold hover:underline"
-          >
-            Switch to {role === "buyer" ? "Farmer" : "Buyer"} Login
-          </button>
+          <div className="border-t border-gray-100 mt-6 pt-5 text-center">
+            <button
+              onClick={() => setRole(role === "buyer" ? "farmer" : "buyer")}
+              className="text-sm text-[#0D631B] font-semibold hover:underline"
+            >
+              Switch to {role === "buyer" ? "Farmer" : "Buyer"} Login
+            </button>
+          </div>
         </div>
       </div>
     </div>

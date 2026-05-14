@@ -8,7 +8,7 @@ export default function FarmerDashboard() {
       </div>
 
       {/* Financial Overview */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100">
+      <div className="bg-white rounded-2xl p-6 border border-[#BFCABA]">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Financial Overview</h2>
@@ -16,26 +16,26 @@ export default function FarmerDashboard() {
               <i className="ri-shield-check-line" /> Escrow Protection Active
             </p>
           </div>
-          <button className="px-4 py-2 rounded-lg bg-[#e8a000] text-white text-sm font-medium hover:bg-[#d09000] transition-colors">
+          <button className="px-4 py-2 rounded-lg bg-[#835400] text-white text-sm font-medium hover:bg-[#d09000] transition-colors">
             Withdraw Funds
           </button>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-[#0D631B] rounded-xl p-5">
+          <div className="bg-[#0D631B] rounded-xl p-5 hover:bg-[#0D631B]/50">
             <p className="text-green-200 text-xs mb-2">Available Balance</p>
             <p className="text-white text-2xl font-bold">₦127,500</p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-5">
+          <div className="bg-gray-50 rounded-xl p-5 hover:bg-gray-50/50">
             <p className="text-gray-500 text-xs mb-1">Pending (Escrow)</p>
             <div className="flex items-center gap-2 mt-1">
               <i className="ri-lock-line text-gray-400" />
               <p className="text-gray-900 text-2xl font-bold">₦45,000</p>
             </div>
           </div>
-          <div className="bg-gray-50 rounded-xl p-5">
+          <div className="bg-gray-50 rounded-xl p-5 hover:bg-gray-50/50">
             <p className="text-gray-500 text-xs mb-1">Awaiting Confirmation</p>
             <p className="text-gray-900 text-2xl font-bold mb-2">3</p>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#FCAB28] text-[#694300] font-medium">
               Not completed
             </span>
           </div>
@@ -52,9 +52,9 @@ export default function FarmerDashboard() {
         </div>
         <div className="grid grid-cols-3 gap-4">
           {/* Card 1 */}
-          <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-            <div className="relative h-44 bg-amber-50">
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
+          <div className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]">
+            <div className="relative h-44">
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                 <i className="ri-checkbox-circle-fill text-xs" /> VERIFIED
               </div>
               <div className="w-full h-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center">
@@ -77,9 +77,9 @@ export default function FarmerDashboard() {
           </div>
 
           {/* Card 2 */}
-          <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+          <div className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]">
             <div className="relative h-44">
-              <div className="absolute top-3 right-3 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                 <i className="ri-checkbox-circle-fill text-xs" /> VERIFIED
               </div>
               <div className="w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
@@ -102,10 +102,13 @@ export default function FarmerDashboard() {
           </div>
 
           {/* Logistics card */}
-          <div className="rounded-2xl overflow-hidden bg-[#1a3a5c] flex flex-col justify-end p-5 h-full min-h-[220px]">
-            <i className="ri-truck-line text-3xl text-blue-200 mb-3" />
-            <p className="text-white font-bold text-lg leading-snug">Need Logistics?</p>
-            <p className="text-blue-200 text-sm mt-1">Book a truck for your next harvest delivery.</p>
+          <div className="rounded-2xl overflow-hidden relative bg-[#1a3a5c] min-h-[220px]">
+            <img src="/truck.jpg" alt="truck" className="absolute inset-0 w-full h-full object-cover mix-blend-multiply" />
+            <div className="absolute inset-0 flex flex-col justify-end p-5">
+              <i className="ri-truck-line text-3xl text-blue-200 mb-3" />
+              <p className="text-white font-bold text-lg leading-snug">Need Logistics?</p>
+              <p className="text-blue-200 text-sm mt-1">Book a truck for your next harvest delivery.</p>
+            </div>
           </div>
         </div>
       </div>

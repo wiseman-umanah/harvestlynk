@@ -16,7 +16,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 bg-white border-r border-gray-100 min-h-screen">
+    <aside className="w-60 shrink-0 bg-white border-r border-[#E0D5B7] min-h-screen">
       <nav className="pt-4 px-3">
         {navItems.map((item) => {
           const active = pathname === item.href;

@@ -4,7 +4,7 @@ export default function BuyerOrders() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[65vh] text-center max-w-md mx-auto">
       {/* Circular image placeholder */}
-      <div className="w-52 h-52 rounded-full bg-gradient-to-br from-stone-200 to-stone-300 flex items-center justify-center mb-8 overflow-hidden relative">
+      <div className="w-52 h-52 rounded-full bg-center bg-no-repeat bg-contain bg-opacity-50 relative" style={{ backgroundImage: "url(/no_order.png)" }}>
         <div className="absolute inset-0 bg-stone-400/20 rounded-full" />
         <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center z-10">
           <i className="ri-shopping-cart-2-line text-3xl text-[#0D631B] line-through" />

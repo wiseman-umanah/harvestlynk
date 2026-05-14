@@ -4,7 +4,7 @@ export default function Profile() {
       <div className="grid grid-cols-3 gap-6">
         {/* Left: Profile card */}
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 flex flex-col items-center text-center">
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col items-center text-center">
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center mb-4 relative">
               <i className="ri-user-line text-4xl text-white" />
               <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center">
@@ -39,7 +39,7 @@ export default function Profile() {
           </div>
 
           {/* Verification Credentials */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
             <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase mb-4">Verification Credentials</p>
             <div className="space-y-4">
               {[
@@ -64,7 +64,7 @@ export default function Profile() {
         {/* Right: About + Listings + Ledger */}
         <div className="col-span-2 space-y-5">
           {/* About the Farm */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">About the Farm</h3>
             <p className="text-gray-600 text-sm leading-relaxed mb-4">
               Specializing in high-quality tubers and grains since 2015, Ibrahim Agro Enterprises has become a cornerstone of the Kano agricultural export community. We operate over 50 hectares of fertile land using integrated pest management and modern irrigation techniques to ensure consistent yield and premium nutritional value.

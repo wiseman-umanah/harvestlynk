@@ -3,13 +3,13 @@ export default function AICropDoctor() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">AI Crop Doctor</h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-[#40493D] mt-1 max-w-md">
           Upload a photo of your diseased crops for instant diagnosis and expert treatment
           recommendations powered by agricultural AI.
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center text-center">
+      <div className="rounded-2xl border border-gray-100 p-12 flex flex-col items-center text-center">
         <div className="w-20 h-20 rounded-2xl bg-[#e8f5e9] flex items-center justify-center mb-6">
           <i className="ri-camera-line text-[#0D631B] text-4xl" />
         </div>

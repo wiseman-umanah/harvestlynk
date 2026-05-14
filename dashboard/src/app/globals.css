@@ -2,7 +2,7 @@
 @import "remixicon/fonts/remixicon.css";
 
 @theme inline {
-  --color-background: #f5f5f0;
+  --color-background: #ffffff;
   --color-foreground: #1a1a1a;
   --color-green: #0D631B;
   --color-green-dark: #0a4f15;

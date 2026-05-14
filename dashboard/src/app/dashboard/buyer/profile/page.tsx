@@ -15,7 +15,6 @@ export default function BuyerProfile() {
     <div className="space-y-5">
       {/* Profile card */}
       <div className="bg-white rounded-2xl p-6 border border-gray-100 relative overflow-hidden">
-        <div className="absolute right-6 top-4 w-24 h-24 rounded-full bg-gray-50" />
         <div className="flex items-start gap-5">
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center border-4 border-[#0D631B]">
