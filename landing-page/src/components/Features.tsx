@@ -1,3 +1,7 @@
+"use client";
+import { motion } from "framer-motion";
+import { fadeUp, staggerContainer, scaleIn } from "@/lib/motion";
+
 const features = [
   {
     icon: "ri-shield-check-line",
@@ -23,17 +27,31 @@ export default function Features() {
   return (
     <section className="bg-white py-20">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
-        <div className="grid md:grid-cols-3 gap-6">
+        <motion.div
+          className="grid md:grid-cols-3 gap-6"
+          variants={staggerContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.2 }}
+        >
           {features.map((f) => (
-            <div key={f.title} className="border border-gray-100 rounded-2xl p-6 hover:shadow-md transition-shadow">
-              <div className="w-10 h-10 rounded-lg bg-[#e8f5e9] flex items-center justify-center mb-4">
+            <motion.div
+              key={f.title}
+              variants={scaleIn}
+              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              className="border border-gray-100 rounded-2xl p-6 hover:shadow-md transition-shadow cursor-default"
+            >
+              <motion.div
+                className="w-10 h-10 rounded-lg bg-[#e8f5e9] flex items-center justify-center mb-4"
+                whileHover={{ rotate: [0, -8, 8, 0], transition: { duration: 0.4 } }}
+              >
                 <i className={`${f.icon} text-[#1e5631] text-xl`} />
-              </div>
+              </motion.div>
               <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
               <p className="text-gray-500 text-sm leading-relaxed">{f.description}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

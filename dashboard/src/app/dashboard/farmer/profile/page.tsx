@@ -1,16 +1,30 @@
+"use client";
+import { motion } from "framer-motion";
+import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
+
 export default function Profile() {
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Profile card */}
-        <div className="space-y-4">
+        <motion.div variants={scaleIn} className="space-y-4">
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col items-center text-center">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center mb-4 relative">
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.15, type: "spring", stiffness: 260 }}
+              className="w-24 h-24 rounded-full bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center mb-4 relative"
+            >
               <i className="ri-user-line text-4xl text-white" />
               <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center">
                 <i className="ri-verified-badge-fill text-white text-xs" />
               </div>
-            </div>
+            </motion.div>
             <h2 className="text-lg font-bold text-gray-900">Alhaji Musa Ibrahim</h2>
             <p className="text-gray-400 text-sm flex items-center gap-1 mt-1">
               <i className="ri-map-pin-line text-xs" /> Kano State, Nigeria
@@ -22,20 +36,30 @@ export default function Profile() {
                 { label: "Reputation Rating", value: "4.9 / 5.0", valueStyle: "text-amber-500 font-semibold flex items-center gap-1" },
                 { label: "Successful Trades", value: "142", valueStyle: "text-[#0D631B] font-semibold" },
                 { label: "Response Rate", value: "98%", valueStyle: "text-[#0D631B] font-semibold" },
-              ].map((s) => (
-                <div key={s.label} className="flex items-center justify-between text-sm">
+              ].map((s, i) => (
+                <motion.div
+                  key={s.label}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.25 + i * 0.08 }}
+                  className="flex items-center justify-between text-sm"
+                >
                   <span className="text-gray-500">{s.label}</span>
                   <span className={s.valueStyle}>
                     {s.label === "Reputation Rating" && <i className="ri-star-fill text-amber-400 text-xs" />}
                     {s.value}
                   </span>
-                </div>
+                </motion.div>
               ))}
             </div>
 
-            <button className="mt-5 w-full py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="mt-5 w-full py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors"
+            >
               Send Message
-            </button>
+            </motion.button>
           </div>
 
           {/* Verification Credentials */}
@@ -46,8 +70,14 @@ export default function Profile() {
                 { icon: "ri-fingerprint-line", iconBg: "bg-green-100", iconColor: "text-[#0D631B]", label: "Identity Verified", sub: "NIN & Biometrics confirmed" },
                 { icon: "ri-plant-line", iconBg: "bg-amber-100", iconColor: "text-amber-600", label: "AI Crop Scan History", sub: "12 High-health reports (2023)" },
                 { icon: "ri-building-2-line", iconBg: "bg-blue-100", iconColor: "text-blue-600", label: "Warehouse Certified", sub: "ISO 22000 Standard Storage" },
-              ].map((c) => (
-                <div key={c.label} className="flex items-start gap-3">
+              ].map((c, i) => (
+                <motion.div
+                  key={c.label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + i * 0.09 }}
+                  className="flex items-start gap-3"
+                >
                   <div className={`w-9 h-9 rounded-xl ${c.iconBg} flex items-center justify-center flex-shrink-0`}>
                     <i className={`${c.icon} ${c.iconColor}`} />
                   </div>
@@ -55,14 +85,14 @@ export default function Profile() {
                     <p className="text-sm font-medium text-gray-900">{c.label}</p>
                     <p className="text-xs text-gray-400">{c.sub}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Right: About + Listings + Ledger */}
-        <div className="lg:col-span-2 space-y-5">
+        <motion.div variants={fadeUp} className="lg:col-span-2 space-y-5">
           {/* About the Farm */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">About the Farm</h3>
@@ -71,7 +101,13 @@ export default function Profile() {
             </p>
             <div className="flex flex-wrap gap-2">
               {["Grains Expert", "Export Ready", "Bulk Supply"].map((tag) => (
-                <span key={tag} className="px-3 py-1 rounded-full border border-gray-200 text-gray-600 text-xs">{tag}</span>
+                <motion.span
+                  key={tag}
+                  whileHover={{ scale: 1.05 }}
+                  className="px-3 py-1 rounded-full border border-gray-200 text-gray-600 text-xs cursor-default"
+                >
+                  {tag}
+                </motion.span>
               ))}
             </div>
           </div>
@@ -88,8 +124,15 @@ export default function Profile() {
               {[
                 { name: "Premium White Yams", sub: "100kg Bags • Available: 24", price: "₦45,000 / bag", bg: "from-stone-100 to-stone-200", icon: "ri-plant-line text-stone-600" },
                 { name: "Grade-A Yellow Maize", sub: "MT (Metric Ton) • Available: 5", price: "₦320,000 / MT", bg: "from-yellow-100 to-yellow-200", icon: "ri-seedling-line text-yellow-600" },
-              ].map((item) => (
-                <div key={item.name} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+              ].map((item, i) => (
+                <motion.div
+                  key={item.name}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + i * 0.1 }}
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100"
+                >
                   <div className={`relative h-36 bg-gradient-to-br ${item.bg} flex items-center justify-center`}>
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
                       <i className="ri-lock-line text-xs" /> ESCROW
@@ -106,7 +149,7 @@ export default function Profile() {
                       </button>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -132,8 +175,14 @@ export default function Profile() {
                     { ref: "FC-88219", product: "Cassava Tubers (500kg)", amount: "₦185,000", stars: 5 },
                     { ref: "FC-87902", product: "Sorghum (2 MT)", amount: "₦640,000", stars: 4 },
                     { ref: "FC-86114", product: "White Beans (800kg)", amount: "₦290,000", stars: 5 },
-                  ].map((row) => (
-                    <tr key={row.ref} className="hover:bg-gray-50">
+                  ].map((row, i) => (
+                    <motion.tr
+                      key={row.ref}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + i * 0.08 }}
+                      className="hover:bg-gray-50"
+                    >
                       <td className="px-4 md:px-6 py-4 text-gray-700 font-medium">{row.ref}</td>
                       <td className="px-4 md:px-6 py-4 text-gray-600">{row.product}</td>
                       <td className="px-4 md:px-6 py-4 font-semibold text-gray-900">{row.amount}</td>
@@ -147,14 +196,14 @@ export default function Profile() {
                           ))}
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

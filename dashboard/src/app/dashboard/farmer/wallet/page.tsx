@@ -1,23 +1,33 @@
 "use client";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
 
 export default function Wallet() {
   const [amount, setAmount] = useState("");
 
   return (
-    <div className="space-y-6">
-      <div>
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={fadeUp}>
         <p className="text-[#0D631B] text-sm flex items-center gap-1 mb-1">
           <i className="ri-lock-line" /> Escrow Protected Funds
         </p>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Withdrawal Dashboard</h1>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left col */}
-        <div className="lg:col-span-2 space-y-4">
+        <motion.div variants={fadeUp} className="lg:col-span-2 space-y-4">
           {/* Available balance */}
-          <div className="bg-white rounded-2xl shadow-sm p-5 md:p-6 border border-gray-100">
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            className="bg-white rounded-2xl shadow-sm p-5 md:p-6 border border-gray-100"
+          >
             <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase mb-2">Available for Withdrawal</p>
             <div className="flex items-center gap-3 flex-wrap">
               <p className="text-3xl md:text-4xl font-bold text-[#0D631B]">₦127,500.00</p>
@@ -26,7 +36,7 @@ export default function Wallet() {
               </span>
             </div>
             <p className="text-gray-400 text-xs mt-2">Next scheduled settlement: Tomorrow, 10:00 AM</p>
-          </div>
+          </motion.div>
 
           {/* Request Payout */}
           <div className="bg-white rounded-2xl shadow-sm p-5 md:p-6 border border-gray-100">
@@ -63,17 +73,21 @@ export default function Wallet() {
               <button className="text-[#0D631B] font-medium hover:underline">Withdraw All</button>
             </div>
 
-            <button className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#e8a000] text-white font-semibold hover:bg-[#d09000] transition-colors">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#e8a000] text-white font-semibold hover:bg-[#d09000] transition-colors"
+            >
               <i className="ri-secure-payment-line" /> Process Secure Withdrawal
-            </button>
+            </motion.button>
             <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1">
               <i className="ri-shield-check-line" /> Encrypted by NIBSS Instant Payment Gateway
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Right col */}
-        <div className="space-y-4">
+        <motion.div variants={scaleIn} className="space-y-4">
           {/* Settlement Policy */}
           <div className="bg-[#0D631B] rounded-2xl shadow-sm p-5 text-white">
             <p className="font-semibold flex items-center gap-2 mb-3">
@@ -111,7 +125,13 @@ export default function Wallet() {
                 { icon: "ri-time-line", iconStyle: "text-amber-500 bg-amber-50", label: "Pending Approval", date: "May 20, 2024", amount: "₦12,200.00", status: "Processing", statusStyle: "text-amber-600" },
                 { icon: "ri-checkbox-circle-line", iconStyle: "text-green-500 bg-green-50", label: "Successful Payout", date: "Apr 28, 2024", amount: "₦89,400.00", status: "Completed", statusStyle: "text-green-600" },
               ].map((w, i) => (
-                <div key={i} className="flex items-center gap-3">
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + i * 0.08 }}
+                  className="flex items-center gap-3"
+                >
                   <div className={`w-9 h-9 rounded-full ${w.iconStyle} flex items-center justify-center flex-shrink-0`}>
                     <i className={`${w.icon} text-sm`} />
                   </div>
@@ -123,12 +143,12 @@ export default function Wallet() {
                     <p className="text-sm font-semibold text-gray-900">{w.amount}</p>
                     <p className={`text-xs font-medium ${w.statusStyle}`}>{w.status}</p>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

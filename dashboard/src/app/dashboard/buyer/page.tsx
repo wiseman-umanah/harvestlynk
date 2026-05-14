@@ -1,4 +1,7 @@
+"use client";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { staggerContainer, fadeUp, scaleIn, fadeIn } from "@/lib/motion";
 
 const stats = [
   { icon: "ri-money-dollar-circle-line", iconBg: "bg-green-100", iconColor: "text-[#0D631B]", badge: "+12% vs last month", badgeColor: "text-[#0D631B]", label: "TOTAL SPENT", value: "₦2,450,000" },
@@ -21,9 +24,17 @@ const recommended = [
 
 export default function BuyerDashboard() {
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
       {/* Welcome banner */}
-      <div className="bg-[#0D631B] rounded-2xl px-5 md:px-8 py-5 md:py-6 relative overflow-hidden">
+      <motion.div
+        variants={fadeUp}
+        className="bg-[#0D631B] rounded-2xl px-5 md:px-8 py-5 md:py-6 relative overflow-hidden"
+      >
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <div className="absolute -right-10 -top-10 w-64 h-64 rounded-full border-[40px] border-white" />
           <div className="absolute right-20 top-10 w-40 h-40 rounded-full border-[24px] border-white" />
@@ -36,12 +47,20 @@ export default function BuyerDashboard() {
           <span className="text-green-300 hidden sm:inline">•</span>
           <span>Member since 2022</span>
         </div>
-      </div>
+      </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <motion.div
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        variants={staggerContainer}
+      >
         {stats.map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border border-gray-100">
+          <motion.div
+            key={s.label}
+            variants={scaleIn}
+            whileHover={{ scale: 1.02 }}
+            className="bg-white rounded-2xl p-5 border border-gray-100"
+          >
             <div className="flex items-start justify-between mb-4">
               <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center`}>
                 <i className={`${s.icon} text-xl ${s.iconColor}`} />
@@ -54,19 +73,25 @@ export default function BuyerDashboard() {
             </div>
             <p className="text-xs text-gray-400 font-medium tracking-wide mb-1">{s.label}</p>
             <p className="text-2xl font-bold text-gray-900">{s.value}</p>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6">
+      <motion.div variants={fadeIn} className="bg-white rounded-2xl border border-gray-100 p-4 md:p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-gray-900">Recent Activity</h2>
           <Link href="/dashboard/buyer/orders" className="text-sm text-[#0D631B] font-medium hover:underline">View All</Link>
         </div>
         <div className="space-y-1">
           {activity.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 md:gap-4 py-3.5 border-b border-gray-50 last:border-0">
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 + i * 0.08 }}
+              className="flex items-center gap-3 md:gap-4 py-3.5 border-b border-gray-50 last:border-0"
+            >
               <div className={`w-10 h-10 rounded-xl ${a.iconBg} flex items-center justify-center flex-shrink-0`}>
                 <i className={`${a.icon} text-gray-600`} />
               </div>
@@ -82,13 +107,13 @@ export default function BuyerDashboard() {
               {a.amount && (
                 <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{a.amount}</span>
               )}
-            </div>
+            </motion.div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Recommended Harvests */}
-      <div>
+      <motion.div variants={fadeUp}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Recommended Harvests</h2>
@@ -103,9 +128,17 @@ export default function BuyerDashboard() {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          variants={staggerContainer}
+        >
           {recommended.map((p, i) => (
-            <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
+            <motion.div
+              key={i}
+              variants={scaleIn}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              className="bg-white rounded-2xl overflow-hidden border border-gray-100"
+            >
               <div className="relative h-36 bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center">
                 <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                   <i className="ri-checkbox-circle-fill text-xs" /> VERIFIED
@@ -121,14 +154,18 @@ export default function BuyerDashboard() {
                   <i className="ri-map-pin-line text-xs" /> {p.farm}
                 </p>
                 <p className="text-gray-400 text-xs mb-3">{p.avail}</p>
-                <button className="w-full py-2 rounded-xl bg-[#0D631B] text-white text-xs font-medium hover:bg-[#0a4f15] transition-colors">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full py-2 rounded-xl bg-[#0D631B] text-white text-xs font-medium hover:bg-[#0a4f15] transition-colors"
+                >
                   Add to Cart
-                </button>
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import { staggerContainer, fadeUp } from "@/lib/motion";
 
 const orders = [
   { id: "#FC-8821", initials: "AO", color: "bg-amber-500", customer: "Adebayo Oluchi", produce: "White Garri (Bag)", qty: 50, total: "₦450,000", status: "Payment Secured", statusStyle: "bg-blue-100 text-blue-700" },
@@ -12,24 +14,31 @@ export default function Orders() {
   const [search, setSearch] = useState("");
 
   return (
-    <div className="space-y-6">
-      <div>
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={fadeUp}>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Order Management</h1>
         <p className="text-gray-500 mt-1">Track and manage your agricultural trades and logistics.</p>
-      </div>
+      </motion.div>
 
       {/* Filters + Search */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           {["all", "active", "completed"].map((t) => (
-            <button
+            <motion.button
               key={t}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors capitalize
                 ${tab === t ? "bg-[#0D631B] text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
             >
               {t === "all" ? "All Orders" : t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
+            </motion.button>
           ))}
         </div>
         <div className="relative w-full sm:w-72">
@@ -42,10 +51,10 @@ export default function Orders() {
             className="pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm w-full focus:outline-none focus:border-[#0D631B]"
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
             <thead>
@@ -60,8 +69,14 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-gray-50">
+              {orders.map((o, i) => (
+                <motion.tr
+                  key={o.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.25 + i * 0.08 }}
+                  className="hover:bg-gray-50"
+                >
                   <td className="px-4 md:px-6 py-4 font-medium text-[#0D631B]">{o.id}</td>
                   <td className="px-4 md:px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -81,11 +96,15 @@ export default function Orders() {
                     </span>
                   </td>
                   <td className="px-4 md:px-6 py-4">
-                    <button className="px-4 py-1.5 rounded-lg bg-[#0D631B] text-white text-xs font-medium hover:bg-[#0a4f15] transition-colors">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-4 py-1.5 rounded-lg bg-[#0D631B] text-white text-xs font-medium hover:bg-[#0a4f15] transition-colors"
+                    >
                       Details
-                    </button>
+                    </motion.button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
@@ -108,7 +127,7 @@ export default function Orders() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

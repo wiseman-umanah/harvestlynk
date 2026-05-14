@@ -1,14 +1,23 @@
+"use client";
+import { motion } from "framer-motion";
+import { staggerContainer, fadeUp, scaleIn, fadeIn } from "@/lib/motion";
+
 export default function FarmerDashboard() {
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
       {/* Header */}
-      <div>
+      <motion.div variants={fadeUp}>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Welcome Back, Daniel</h1>
         <p className="text-gray-500 mt-1">Access your dashboard</p>
-      </div>
+      </motion.div>
 
       {/* Financial Overview */}
-      <div className="bg-white rounded-2xl p-4 md:p-6 border border-[#BFCABA]">
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl p-4 md:p-6 border border-[#BFCABA]">
         <div className="flex items-start sm:items-center justify-between mb-5 gap-3 flex-col sm:flex-row">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Financial Overview</h2>
@@ -16,43 +25,65 @@ export default function FarmerDashboard() {
               <i className="ri-shield-check-line" /> Escrow Protection Active
             </p>
           </div>
-          <button className="px-4 py-2 rounded-lg bg-[#835400] text-white text-sm font-medium hover:bg-[#d09000] transition-colors self-start sm:self-auto">
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            className="px-4 py-2 rounded-lg bg-[#835400] text-white text-sm font-medium hover:bg-[#d09000] transition-colors self-start sm:self-auto"
+          >
             Withdraw Funds
-          </button>
+          </motion.button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-[#0D631B] rounded-xl p-5 hover:bg-[#0D631B]/90">
-            <p className="text-green-200 text-xs mb-2">Available Balance</p>
-            <p className="text-white text-2xl font-bold">₦127,500</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-5">
-            <p className="text-gray-500 text-xs mb-1">Pending (Escrow)</p>
-            <div className="flex items-center gap-2 mt-1">
-              <i className="ri-lock-line text-gray-400" />
-              <p className="text-gray-900 text-2xl font-bold">₦45,000</p>
-            </div>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-5">
-            <p className="text-gray-500 text-xs mb-1">Awaiting Confirmation</p>
-            <p className="text-gray-900 text-2xl font-bold mb-2">3</p>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[#FCAB28] text-[#694300] font-medium">
-              Not completed
-            </span>
-          </div>
-        </div>
-      </div>
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+          variants={staggerContainer}
+        >
+          {[
+            { bg: "bg-[#0D631B]", label: "Available Balance", labelStyle: "text-green-200 text-xs mb-2", value: "₦127,500", valueStyle: "text-white text-2xl font-bold", extra: null },
+            { bg: "bg-gray-50", label: "Pending (Escrow)", labelStyle: "text-gray-500 text-xs mb-1", value: "₦45,000", valueStyle: "text-gray-900 text-2xl font-bold", extra: "lock" },
+            { bg: "bg-gray-50", label: "Awaiting Confirmation", labelStyle: "text-gray-500 text-xs mb-1", value: "3", valueStyle: "text-gray-900 text-2xl font-bold mb-2", extra: "badge" },
+          ].map((card, i) => (
+            <motion.div
+              key={i}
+              variants={scaleIn}
+              whileHover={{ scale: 1.02 }}
+              className={`${card.bg} rounded-xl p-5`}
+            >
+              <p className={card.labelStyle}>{card.label}</p>
+              {card.extra === "lock" && (
+                <div className="flex items-center gap-2 mt-1">
+                  <i className="ri-lock-line text-gray-400" />
+                  <p className={card.valueStyle}>{card.value}</p>
+                </div>
+              )}
+              {card.extra !== "lock" && <p className={card.valueStyle}>{card.value}</p>}
+              {card.extra === "badge" && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#FCAB28] text-[#694300] font-medium">
+                  Not completed
+                </span>
+              )}
+            </motion.div>
+          ))}
+        </motion.div>
+      </motion.div>
 
       {/* My Produce Listings */}
-      <div>
+      <motion.div variants={fadeUp}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">My Produce Listings</h2>
           <a href="/dashboard/farmer/farm" className="text-sm text-[#0D631B] font-medium hover:underline">
             View All
           </a>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          variants={staggerContainer}
+        >
           {/* Card 1 */}
-          <div className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]">
+          <motion.div
+            variants={scaleIn}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]"
+          >
             <div className="relative h-44">
               <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                 <i className="ri-checkbox-circle-fill text-xs" /> VERIFIED
@@ -74,10 +105,14 @@ export default function FarmerDashboard() {
                 <i className="ri-inbox-archive-line" /> 45 Bags remaining
               </p>
             </div>
-          </div>
+          </motion.div>
 
           {/* Card 2 */}
-          <div className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]">
+          <motion.div
+            variants={scaleIn}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            className="bg-white rounded-2xl overflow-hidden border border-[#BFCABA]"
+          >
             <div className="relative h-44">
               <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                 <i className="ri-checkbox-circle-fill text-xs" /> VERIFIED
@@ -99,22 +134,26 @@ export default function FarmerDashboard() {
                 <i className="ri-inbox-archive-line" /> 12 Crates remaining
               </p>
             </div>
-          </div>
+          </motion.div>
 
           {/* Logistics card */}
-          <div className="rounded-2xl overflow-hidden relative bg-[#1a3a5c] min-h-[220px] sm:col-span-2 lg:col-span-1">
+          <motion.div
+            variants={scaleIn}
+            whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+            className="rounded-2xl overflow-hidden relative bg-[#1a3a5c] min-h-[220px] sm:col-span-2 lg:col-span-1"
+          >
             <img src="/truck.jpg" alt="truck" className="absolute inset-0 w-full h-full object-cover mix-blend-multiply" />
             <div className="absolute inset-0 flex flex-col justify-end p-5">
               <i className="ri-truck-line text-3xl text-blue-200 mb-3" />
               <p className="text-white font-bold text-lg leading-snug">Need Logistics?</p>
               <p className="text-blue-200 text-sm mt-1">Book a truck for your next harvest delivery.</p>
             </div>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
 
       {/* Recent Order Activity */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <motion.div variants={fadeIn} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-4 md:px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">Recent Order Activity</h2>
         </div>
@@ -135,8 +174,14 @@ export default function FarmerDashboard() {
                 { id: "#FC-8821", customer: "Chike Obi Ent.", produce: "Yam Tubers (20)", amount: "₦42,000", status: "Secured in Escrow", dot: "bg-amber-400" },
                 { id: "#FC-8819", customer: "Lagos Fresh Market", produce: "Hybrid Maize (10 Bags)", amount: "₦15,500", status: "Released to Wallet", dot: "bg-green-500" },
                 { id: "#FC-8790", customer: "Mama Africa Foods", produce: "Red Pepper (5 Crates)", amount: "₦12,000", status: "Awaiting Payment", dot: "bg-red-500" },
-              ].map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50">
+              ].map((row, i) => (
+                <motion.tr
+                  key={row.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + i * 0.07 }}
+                  className="hover:bg-gray-50"
+                >
                   <td className="px-4 md:px-6 py-4 font-medium text-[#0D631B]">{row.id}</td>
                   <td className="px-4 md:px-6 py-4 text-gray-700">{row.customer}</td>
                   <td className="px-4 md:px-6 py-4 text-gray-600">{row.produce}</td>
@@ -148,14 +193,20 @@ export default function FarmerDashboard() {
                     </span>
                   </td>
                   <td className="px-4 md:px-6 py-4">
-                    <button className="text-[#0D631B] font-medium hover:underline">Details</button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="text-[#0D631B] font-medium hover:underline"
+                    >
+                      Details
+                    </motion.button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
