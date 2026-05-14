@@ -5,7 +5,7 @@ export default function Wallet() {
   const [amount, setAmount] = useState("");
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div>
         <p className="text-[#0D631B] text-sm flex items-center gap-1 mb-1">
           <i className="ri-lock-line" /> Escrow Protected Funds

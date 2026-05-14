@@ -1,6 +1,6 @@
 export default function Profile() {
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       <div className="grid grid-cols-3 gap-6">
         {/* Left: Profile card */}
         <div className="space-y-4">

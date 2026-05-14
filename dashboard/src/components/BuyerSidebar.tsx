@@ -3,13 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { label: "Dashboard",     icon: "ri-layout-grid-line",   href: "/dashboard/buyer" },
-  { label: "Scan",          icon: "ri-scan-line",           href: "/dashboard/buyer/scan" },
-  { label: "My farm",       icon: "ri-leaf-line",           href: "/dashboard/buyer/farm" },
-  { label: "Market Place",  icon: "ri-store-2-line",        href: "/dashboard/buyer/marketplace" },
-  { label: "Orders",        icon: "ri-list-ordered",        href: "/dashboard/buyer/orders" },
-  { label: "Wallet Balance",icon: "ri-wallet-3-line",       href: "/dashboard/buyer/wallet" },
-  { label: "Profile",       icon: "ri-user-line",           href: "/dashboard/buyer/profile" },
+  { label: "Dashboard",      icon: "ri-layout-grid-line",  href: "/dashboard/buyer" },
+  { label: "Market Place",   icon: "ri-store-2-line",      href: "/dashboard/buyer/marketplace" },
+  { label: "Orders",         icon: "ri-list-ordered",      href: "/dashboard/buyer/orders" },
+  { label: "Wallet Balance", icon: "ri-wallet-3-line",     href: "/dashboard/buyer/wallet" },
+  { label: "Profile",        icon: "ri-user-line",         href: "/dashboard/buyer/profile" },
 ];
 
 export default function BuyerSidebar() {

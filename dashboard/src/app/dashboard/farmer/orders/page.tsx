@@ -12,7 +12,7 @@ export default function Orders() {
   const [search, setSearch] = useState("");
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
         <p className="text-gray-500 mt-1">Track and manage your agricultural trades and logistics.</p>

@@ -1,6 +1,6 @@
 export default function FarmerDashboard() {
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Welcome Back, Daniel</h1>
