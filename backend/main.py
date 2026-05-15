@@ -72,7 +72,7 @@ async def predict_pathogen(file: UploadFile = File(...)):
         full_label = CLASS_NAMES[idx] 
         
         # 3. Treatment Logic
-        disease_key = full_label.split("___")[-1] 
+        disease_key = full_label.replace("___", "_")
         treatment_info = TREATMENTS.get(disease_key, TREATMENTS.get("healthy"))
         
         if "healthy" in full_label.lower():
