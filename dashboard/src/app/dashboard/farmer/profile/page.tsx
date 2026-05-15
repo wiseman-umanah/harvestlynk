@@ -1,8 +1,17 @@
 "use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
 
 export default function Profile() {
+  const router = useRouter();
+  const [unverified, setUnverified] = useState(false);
+
+  useEffect(() => {
+    setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
+  }, []);
+
   return (
     <motion.div
       className="space-y-6"
@@ -30,6 +39,15 @@ export default function Profile() {
               <i className="ri-map-pin-line text-xs" /> Kano State, Nigeria
             </p>
             <p className="text-gray-400 text-xs mt-0.5">Joined March 2015</p>
+
+            {unverified && (
+              <button
+                onClick={() => router.push("/onboard/farmer")}
+                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+              >
+                <i className="ri-error-warning-line" /> Account Not Verified
+              </button>
+            )}
 
             <div className="w-full mt-5 space-y-2">
               {[

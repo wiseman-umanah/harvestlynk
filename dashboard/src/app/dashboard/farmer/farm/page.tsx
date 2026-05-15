@@ -1,11 +1,20 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
 import ListProductModal from "@/components/ListProductModal";
 
-export default function MyFarm() {
+function MyFarmInner() {
+  const searchParams = useSearchParams();
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("list") === "true") {
+      setShowModal(true);
+    }
+  }, [searchParams]);
 
   return (
     <motion.div
@@ -186,5 +195,13 @@ export default function MyFarm() {
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+export default function MyFarm() {
+  return (
+    <Suspense>
+      <MyFarmInner />
+    </Suspense>
   );
 }

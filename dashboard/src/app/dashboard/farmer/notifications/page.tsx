@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, fadeUp } from "@/lib/motion";
 
@@ -81,7 +82,13 @@ const cardVariants = {
 };
 
 export default function FarmerNotifications() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("All");
+  const [unverified, setUnverified] = useState(false);
+
+  useEffect(() => {
+    setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
+  }, []);
 
   const filtered = notifications.filter((n) => n.tab.includes(activeTab));
   const recent = filtered.filter((n) => !n.earlier);
@@ -95,36 +102,65 @@ export default function FarmerNotifications() {
       animate="show"
     >
       {/* Header */}
-      <motion.div variants={fadeUp} className="flex items-start justify-between">
+      <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Notifications</h1>
           <p className="text-gray-500 mt-1">Stay updated on your farm&apos;s activities and transactions.</p>
         </div>
         <motion.button
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors self-start sm:self-auto whitespace-nowrap"
         >
           <i className="ri-check-double-line" /> Mark all as read
         </motion.button>
       </motion.div>
 
       {/* Tabs */}
-      <motion.div variants={fadeUp} className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === tab
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <motion.div variants={fadeUp} className="overflow-x-auto">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit min-w-full sm:min-w-0">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </motion.div>
+
+      {/* Verification banner */}
+      {unverified && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <i className="ri-shield-line text-amber-600 text-lg" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-800">Account verification pending</p>
+              <p className="text-xs text-amber-600 mt-0.5">Complete identity &amp; farm verification to unlock full marketplace access.</p>
+            </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => router.push("/onboard/farmer")}
+            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors whitespace-nowrap self-start sm:self-auto"
+          >
+            Complete Verification
+          </motion.button>
+        </motion.div>
+      )}
 
       {/* Notification list */}
       <div className="space-y-3">

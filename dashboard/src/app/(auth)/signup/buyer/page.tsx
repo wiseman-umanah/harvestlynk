@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import OtpModal from "@/components/OtpModal";
 
-export default function FarmerSignup() {
+export default function BuyerSignup() {
   const [showPassword, setShowPassword] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [email, setEmail] = useState("");
@@ -16,8 +16,8 @@ export default function FarmerSignup() {
     <>
       {showOtp && (
         <OtpModal
-          email={email || "farmer@harvestlynk.com"}
-          redirectTo="/onboard/farmer"
+          email={email || "buyer@harvestlynk.com"}
+          redirectTo="/dashboard/buyer"
           onClose={() => setShowOtp(false)}
         />
       )}
@@ -27,7 +27,7 @@ export default function FarmerSignup() {
         <div className="hidden lg:flex w-1/2 relative bg-[#0D631B] items-end justify-start overflow-hidden">
           <img
             src="/signup.png"
-            alt="Farmer"
+            alt="Buyer"
             className="absolute inset-0 w-full h-full object-cover mix-blend-multiply"
           />
         </div>
@@ -35,8 +35,8 @@ export default function FarmerSignup() {
         {/* Right: form */}
         <div className="flex-1 flex items-start lg:items-center justify-center p-5 sm:p-8 bg-white overflow-y-auto">
           <div className="w-full max-w-md py-8 lg:py-0">
-            <h2 className="text-2xl font-bold text-[#0D631B] mb-1">Create Farmer Account</h2>
-            <p className="text-gray-400 text-sm mb-7">Step 1: Basic Farm Information</p>
+            <h2 className="text-2xl font-bold text-[#0D631B] mb-1">Create Buyer Account</h2>
+            <p className="text-gray-400 text-sm mb-7">Access fresh produce from verified Nigerian farms</p>
 
             <div className="space-y-4">
               <div>
@@ -65,26 +65,14 @@ export default function FarmerSignup() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1.5">Farm Name</label>
-                <div className="relative">
-                  <i className="ri-store-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="e.g. Green Harvest Ventures"
-                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors"
-                  />
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-1.5">Location (State/LGA)</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1.5">Location (State)</label>
                   <div className="relative">
                     <i className="ri-map-pin-line absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Kano, Ungogo"
+                      placeholder="Lagos, Ikeja"
                       className="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors"
                     />
                   </div>
@@ -125,9 +113,9 @@ export default function FarmerSignup() {
                 <span className="text-xs text-gray-500 leading-relaxed">
                   I agree to the{" "}
                   <a href="#" className="text-[#0D631B] font-medium hover:underline">Terms of Service</a>
-                  {" "}and acknowledge the{" "}
-                  <a href="#" className="text-[#0D631B] font-medium hover:underline">AI Verification</a>
-                  {" "}protocol for farmer authentication.
+                  {" "}and{" "}
+                  <a href="#" className="text-[#0D631B] font-medium hover:underline">Privacy Policy</a>
+                  . All transactions are protected by our escrow system.
                 </span>
               </label>
 
@@ -135,14 +123,14 @@ export default function FarmerSignup() {
                 onClick={handleCreate}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#0D631B] text-white font-semibold hover:bg-[#0a4f15] transition-colors"
               >
-                Create Farmer Account
+                Create Buyer Account
                 <i className="ri-arrow-right-line" />
               </button>
             </div>
 
             <p className="text-center text-sm text-gray-500 mt-5">
               Already have an account?{" "}
-              <Link href="/login?role=farmer" className="text-[#0D631B] font-semibold hover:underline">Log in as Farmer</Link>
+              <Link href="/login?role=buyer" className="text-[#0D631B] font-semibold hover:underline">Log in as Buyer</Link>
             </p>
           </div>
         </div>

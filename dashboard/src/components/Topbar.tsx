@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface Props {
   onMenuToggle: () => void;
@@ -8,13 +9,24 @@ interface Props {
 
 export default function Topbar({ onMenuToggle }: Props) {
   const pathname = usePathname();
-  const notificationsHref = pathname.startsWith("/dashboard/buyer")
+  const isBuyer = pathname.startsWith("/dashboard/buyer");
+  const [unverified, setUnverified] = useState(false);
+
+  useEffect(() => {
+    if (!isBuyer) {
+      const v = localStorage.getItem("hl_farmer_verified");
+      // show badge if explicitly set to false (skipped onboarding)
+      setUnverified(v === "false");
+    }
+  }, [isBuyer, pathname]);
+  const notificationsHref = isBuyer
     ? "/dashboard/buyer/notifications"
     : "/dashboard/farmer/notifications";
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 md:px-8 bg-white border-b border-[#E0D5B7] shrink-0">
-      <div className="flex items-center gap-3">
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-white border-b border-[#E0D5B7] shrink-0 gap-4">
+      {/* Left: hamburger + logo */}
+      <div className="flex items-center gap-3 shrink-0">
         <button
           onClick={onMenuToggle}
           className="md:hidden text-gray-600 hover:text-gray-900 transition-colors"
@@ -25,18 +37,70 @@ export default function Topbar({ onMenuToggle }: Props) {
         <span className="text-lg font-bold text-gray-900">Harvestlynk</span>
       </div>
 
-      <div className="flex items-center gap-2 md:gap-3">
-        <Link href={notificationsHref} className="relative text-gray-500 hover:text-gray-800">
-          <i className="ri-notification-3-line text-xl" />
-        </Link>
-        <button className="hidden sm:block text-gray-500 hover:text-gray-800">
-          <i className="ri-wallet-3-line text-xl" />
-        </button>
-        <div className="flex items-center gap-2 pl-3 pr-5 py-2 md:pl-4 md:pr-9 md:py-2.5 rounded-full bg-[#CBFFC2]">
-          <div className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#0D631B] bg-[#0D631B] flex items-center justify-center text-white text-xs font-bold">
-            D
+      {/* Center: search bar (buyer only) */}
+      {isBuyer && (
+        <div className="flex-1 max-w-md hidden sm:block">
+          <div className="relative">
+            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+            <input
+              type="text"
+              placeholder="Search harvests, farmers..."
+              className="w-full pl-9 pr-4 py-2 rounded-full border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors"
+            />
           </div>
-          <span className="text-sm font-medium text-[#0D631B] hidden sm:block">Daniel</span>
+        </div>
+      )}
+
+      {/* Right: icons + profile */}
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        {/* Cart icon — buyer only */}
+        {isBuyer && (
+          <Link
+            href="/dashboard/buyer/checkout"
+            className="relative text-gray-500 hover:text-gray-800 transition-colors"
+            aria-label="Cart"
+          >
+            <i className="ri-shopping-bag-3-line text-xl" />
+            {/* Badge */}
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0D631B] text-white text-[9px] font-bold flex items-center justify-center">
+              2
+            </span>
+          </Link>
+        )}
+
+        {/* Bell */}
+        <Link href={notificationsHref} className="relative text-gray-500 hover:text-gray-800 transition-colors">
+          <i className="ri-notification-3-line text-xl" />
+          {unverified && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+              1
+            </span>
+          )}
+        </Link>
+
+        {/* Wallet balance (buyer only, hidden on xs) */}
+        {isBuyer ? (
+          <Link
+            href="/dashboard/buyer/wallet"
+            className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-[#0D631B] transition-colors"
+          >
+            <i className="ri-bank-card-line text-base text-gray-400" />
+            ₦12,000
+          </Link>
+        ) : (
+          <button className="hidden sm:block text-gray-500 hover:text-gray-800">
+            <i className="ri-wallet-3-line text-xl" />
+          </button>
+        )}
+
+        {/* Profile pill */}
+        <div className="flex items-center gap-2 pl-2 pr-3 py-1.5 md:pl-3 md:pr-4 rounded-full bg-[#CBFFC2]">
+          <div className="w-7 h-7 rounded-full border border-[#0D631B] bg-[#0D631B] flex items-center justify-center text-white text-xs font-bold">
+            {isBuyer ? "M" : "D"}
+          </div>
+          <span className="text-sm font-medium text-[#0D631B] hidden sm:block">
+            {isBuyer ? "Musa" : "Daniel"}
+          </span>
         </div>
       </div>
     </header>

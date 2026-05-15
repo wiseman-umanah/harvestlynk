@@ -117,7 +117,7 @@ export default function Login() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             {"Don't have an account? "}
-            <Link href="/signup/farmer" className="text-[#e8a000] font-semibold hover:underline">Create an Account</Link>
+            <Link href={role === "farmer" ? "/signup/farmer" : "/signup/buyer"} className="text-[#e8a000] font-semibold hover:underline">Create an Account</Link>
           </p>
 
           <div className="border-t border-gray-100 mt-6 pt-5 text-center">
