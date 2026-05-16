@@ -1,10 +1,30 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import BuyerSidebar from "@/components/BuyerSidebar";
 import Topbar from "@/components/Topbar";
+import { useAuth } from "@/context/AuthContext";
 
 export default function BuyerLayout({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login?role=buyer");
+    }
+  }, [loading, user, router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <i className="ri-loader-4-line animate-spin text-3xl text-[#0D631B]" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
     <div className="flex flex-col h-screen">

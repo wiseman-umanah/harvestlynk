@@ -1,14 +1,23 @@
 "use client";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
-
-const transactions = [
-  { date: "Oct 24, 2023", desc: "Order #AH-92831", sub: "Bags of Hybrid Maize", type: "Debit", amount: "₦450,000.00", status: "Held in Escrow", statusBg: "bg-blue-50", statusText: "text-blue-600", statusIcon: "ri-lock-line" },
-  { date: "Oct 22, 2023", desc: "Wallet Credit", sub: "Bank Transfer (Wema Bank)", type: "Credit", amount: "₦1,000,000.00", status: "Completed", statusBg: "bg-green-100", statusText: "text-[#0D631B]", statusIcon: null },
-  { date: "Oct 18, 2023", desc: "Order #AH-92744", sub: "2 Tons of Cassava Tubers", type: "Debit", amount: "₦320,000.00", status: "Completed", statusBg: "bg-green-100", statusText: "text-[#0D631B]", statusIcon: null },
-];
+import { useAuth } from "@/context/AuthContext";
+import { walletApi, formatNaira, Transaction } from "@/lib/api";
 
 export default function BuyerWallet() {
+  const { wallet, refreshWallet } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+
+  useEffect(() => {
+    refreshWallet();
+    walletApi.getTransactions()
+      .then(setTransactions)
+      .catch(() => {})
+      .finally(() => setTxLoading(false));
+  }, [refreshWallet]);
+
   return (
     <motion.div
       className="space-y-6"
@@ -27,8 +36,14 @@ export default function BuyerWallet() {
         </div>
         <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase mb-2">Available Balance</p>
         <p className="text-3xl md:text-4xl font-bold text-gray-900 mb-1">
-          ₦1,240,500.00 <span className="text-base md:text-lg font-medium text-gray-400">NGN</span>
+          {wallet ? formatNaira(wallet.available_balance) : "₦0.00"}{" "}
+          <span className="text-base md:text-lg font-medium text-gray-400">NGN</span>
         </p>
+        {wallet && parseInt(wallet.pending_balance, 10) > 0 && (
+          <p className="text-amber-600 text-xs mb-1 flex items-center gap-1">
+            <i className="ri-lock-line" /> {formatNaira(wallet.pending_balance)} held in escrow
+          </p>
+        )}
         <div className="flex flex-wrap gap-3 mt-5">
           <motion.button
             whileHover={{ scale: 1.04 }}
@@ -51,50 +66,74 @@ export default function BuyerWallet() {
       <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">Transaction History</h2>
-          <button className="text-sm text-[#0D631B] font-medium hover:underline flex items-center gap-1">
-            View All <i className="ri-arrow-right-line" />
-          </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px]">
-            <thead>
-              <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-4 md:px-6 py-3">Date</th>
-                <th className="text-left px-4 md:px-6 py-3">Description</th>
-                <th className="text-left px-4 md:px-6 py-3">Type</th>
-                <th className="text-left px-4 md:px-6 py-3">Amount</th>
-                <th className="text-left px-4 md:px-6 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t, i) => (
-                <motion.tr
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + i * 0.08 }}
-                  className="border-t border-gray-50 hover:bg-gray-50/50 transition-colors"
-                >
-                  <td className="px-4 md:px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{t.date}</td>
-                  <td className="px-4 md:px-6 py-4">
-                    <p className="text-sm font-medium text-gray-900">{t.desc}</p>
-                    <p className="text-xs text-gray-400">{t.sub}</p>
-                  </td>
-                  <td className={`px-4 md:px-6 py-4 text-sm font-semibold ${t.type === "Credit" ? "text-[#0D631B]" : "text-red-500"}`}>
-                    {t.type}
-                  </td>
-                  <td className="px-4 md:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{t.amount}</td>
-                  <td className="px-4 md:px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${t.statusBg} ${t.statusText}`}>
-                      {t.statusIcon && <i className={t.statusIcon} />}
-                      {t.status}
-                    </span>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        {txLoading ? (
+          <div className="flex justify-center py-12">
+            <i className="ri-loader-4-line animate-spin text-[#0D631B] text-2xl" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-gray-400">
+            <i className="ri-file-list-3-line text-3xl mb-2" />
+            <p className="text-sm">No transactions yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px]">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-4 md:px-6 py-3">Date</th>
+                  <th className="text-left px-4 md:px-6 py-3">Description</th>
+                  <th className="text-left px-4 md:px-6 py-3">Type</th>
+                  <th className="text-left px-4 md:px-6 py-3">Amount</th>
+                  <th className="text-left px-4 md:px-6 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((t, i) => (
+                  <motion.tr
+                    key={t.transaction_id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 + i * 0.06 }}
+                    className="border-t border-gray-50 hover:bg-gray-50/50 transition-colors"
+                  >
+                    <td className="px-4 md:px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                      {new Date(t.created_at).toLocaleDateString("en-NG", {
+                        day: "2-digit", month: "short", year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-4 md:px-6 py-4">
+                      <p className="text-sm font-medium text-gray-900">
+                        {t.description ?? (t.reference_type
+                          ? `${t.reference_type} #${t.reference_id?.slice(0, 8)}`
+                          : "Transaction")}
+                      </p>
+                    </td>
+                    <td className={`px-4 md:px-6 py-4 text-sm font-semibold ${
+                      t.type === "credit" ? "text-[#0D631B]" : "text-red-500"
+                    }`}>
+                      {t.type === "credit" ? "Credit" : "Debit"}
+                    </td>
+                    <td className="px-4 md:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
+                      {t.type === "debit" ? "-" : "+"}{formatNaira(t.amount)}
+                    </td>
+                    <td className="px-4 md:px-6 py-4">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        t.status === "completed" ? "bg-green-100 text-[#0D631B]" :
+                        t.status === "pending"   ? "bg-blue-50 text-blue-600" :
+                                                   "bg-red-50 text-red-500"
+                      }`}>
+                        {t.status === "pending" && <i className="ri-lock-line" />}
+                        {t.status}
+                      </span>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { label: "Dashboard",      icon: "ri-layout-grid-line",  href: "/dashboard/buyer" },
@@ -18,10 +19,12 @@ interface Props {
 export default function BuyerSidebar({ open, onClose }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
 
-  function handleLogout() {
+  async function handleLogout() {
     onClose();
-    router.push("/signup/farmer");
+    await logout();
+    router.push("/login?role=buyer");
   }
 
   return (

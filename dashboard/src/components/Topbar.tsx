@@ -2,6 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
+import { formatNaira } from "@/lib/api";
 
 interface Props {
   onMenuToggle: () => void;
@@ -11,17 +14,22 @@ export default function Topbar({ onMenuToggle }: Props) {
   const pathname = usePathname();
   const isBuyer = pathname.startsWith("/dashboard/buyer");
   const [unverified, setUnverified] = useState(false);
+  const { user, wallet } = useAuth();
 
   useEffect(() => {
     if (!isBuyer) {
-      const v = localStorage.getItem("hl_farmer_verified");
-      // show badge if explicitly set to false (skipped onboarding)
-      setUnverified(v === "false");
+      setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
     }
   }, [isBuyer, pathname]);
+
   const notificationsHref = isBuyer
     ? "/dashboard/buyer/notifications"
     : "/dashboard/farmer/notifications";
+
+  const { totalItems } = useCart();
+  const displayName = user?.name?.split(" ")[0] ?? (isBuyer ? "Buyer" : "Farmer");
+  const initial = displayName.charAt(0).toUpperCase();
+  const walletDisplay = wallet ? formatNaira(wallet.available_balance) : "₦0.00";
 
   return (
     <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-white border-b border-[#E0D5B7] shrink-0 gap-4">
@@ -61,10 +69,11 @@ export default function Topbar({ onMenuToggle }: Props) {
             aria-label="Cart"
           >
             <i className="ri-shopping-bag-3-line text-xl" />
-            {/* Badge */}
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0D631B] text-white text-[9px] font-bold flex items-center justify-center">
-              2
-            </span>
+            {totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0D631B] text-white text-[9px] font-bold flex items-center justify-center">
+                {totalItems > 9 ? "9+" : totalItems}
+              </span>
+            )}
           </Link>
         )}
 
@@ -78,14 +87,14 @@ export default function Topbar({ onMenuToggle }: Props) {
           )}
         </Link>
 
-        {/* Wallet balance (buyer only, hidden on xs) */}
+        {/* Wallet balance (buyer only) */}
         {isBuyer ? (
           <Link
             href="/dashboard/buyer/wallet"
             className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-[#0D631B] transition-colors"
           >
             <i className="ri-bank-card-line text-base text-gray-400" />
-            ₦12,000
+            {walletDisplay}
           </Link>
         ) : (
           <button className="hidden sm:block text-gray-500 hover:text-gray-800">
@@ -96,10 +105,10 @@ export default function Topbar({ onMenuToggle }: Props) {
         {/* Profile pill */}
         <div className="flex items-center gap-2 pl-2 pr-3 py-1.5 md:pl-3 md:pr-4 rounded-full bg-[#CBFFC2]">
           <div className="w-7 h-7 rounded-full border border-[#0D631B] bg-[#0D631B] flex items-center justify-center text-white text-xs font-bold">
-            {isBuyer ? "M" : "D"}
+            {initial}
           </div>
           <span className="text-sm font-medium text-[#0D631B] hidden sm:block">
-            {isBuyer ? "Musa" : "Daniel"}
+            {displayName}
           </span>
         </div>
       </div>

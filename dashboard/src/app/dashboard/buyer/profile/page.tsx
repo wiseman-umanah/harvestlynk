@@ -1,29 +1,83 @@
 "use client";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
+import { useAuth } from "@/context/AuthContext";
+import {
+  ordersApi,
+  walletApi,
+  formatNaira,
+  koboToNaira,
+  type BuyerOrder,
+  type Transaction,
+} from "@/lib/api";
 
-const recentOrders = [
-  { thumb: "ri-basket-line", name: "Premium Yam Tubers (50kg)", ref: "Order #FC-88291 • June 12, 2024", amount: "₦75,000", status: "IN TRANSIT", statusBg: "bg-blue-50", statusText: "text-blue-600" },
-  { thumb: "ri-leaf-line",   name: "Organic Veggie Basket (Large)", ref: "Order #FC-88104 • June 05, 2024", amount: "₦12,500", status: "DELIVERED", statusBg: "bg-green-100", statusText: "text-[#0D631B]" },
-  { thumb: "ri-store-line",  name: "Stone-Free Local Rice (25kg)", ref: "Order #FC-87992 • May 28, 2024", amount: "₦32,000", status: "DELIVERED", statusBg: "bg-green-100", statusText: "text-[#0D631B]" },
-];
+const TX_ICON: Record<string, string> = {
+  credit: "ri-arrow-down-circle-line text-green-500",
+  debit:  "ri-arrow-up-circle-line text-red-400",
+};
 
-const stats = [
-  { label: "Total Orders", value: "42", note: "+3 this month", accent: "border-l-4 border-[#0D631B]" },
-  { label: "Escrow Success", value: "100%", note: "", icon: "ri-shield-check-line", accent: "border-l-4 border-blue-400" },
-  { label: "Active Disputes", value: "0", note: "Perfect Record", accent: "border-l-4 border-red-400" },
-];
+function relativeDate(iso: string) {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (d === 0) return "Today";
+  if (d === 1) return "Yesterday";
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+}
+
+const ORDER_STATUS: Record<BuyerOrder["status"], { label: string; badge: string }> = {
+  pending_payment: { label: "Awaiting Payment",  badge: "bg-red-100 text-red-700" },
+  processing:      { label: "In Escrow",         badge: "bg-blue-100 text-blue-700" },
+  completed:       { label: "Delivered",         badge: "bg-green-100 text-green-700" },
+  cancelled:       { label: "Cancelled",         badge: "bg-gray-100 text-gray-500" },
+  disputed:        { label: "Disputed",          badge: "bg-orange-100 text-orange-700" },
+};
 
 export default function BuyerProfile() {
+  const { user, wallet } = useAuth();
+  const [orders, setOrders] = useState<BuyerOrder[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [o, t] = await Promise.all([
+        ordersApi.getMyBuyerOrders(),
+        walletApi.getTransactions(),
+      ]);
+      setOrders(o);
+      setTransactions(t);
+    } catch {
+      // empty states will handle
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const displayName   = user?.name ?? "Buyer";
+  const initials      = displayName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const email         = user?.email ?? "—";
+  const phone         = user?.phoneNumber ?? "Not provided";
+  const location      = [user?.location_state, "Nigeria"].filter(Boolean).join(", ");
+  const memberSince   = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("en-NG", { month: "long", year: "numeric" })
+    : "—";
+
+  const completedOrders = orders.filter((o) => o.status === "completed");
+  const activeOrders    = orders.filter((o) => ["processing", "pending_payment"].includes(o.status));
+  const disputedOrders  = orders.filter((o) => o.status === "disputed");
+  const totalSpent      = completedOrders.reduce((s, o) => s + o.total_amount, 0);
+  const availableBalance = wallet?.available_balance ? formatNaira(wallet.available_balance) : "₦0.00";
+
   return (
-    <motion.div
-      className="space-y-5"
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <motion.div className="space-y-5" variants={staggerContainer} initial="hidden" animate="show">
+
       {/* Profile card */}
-      <motion.div variants={fadeUp} className="bg-white rounded-2xl p-5 md:p-6 border border-gray-100 relative overflow-hidden">
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl p-5 md:p-6 border border-gray-100">
         <div className="flex flex-col sm:flex-row items-start gap-5">
           <motion.div
             initial={{ scale: 0.75, opacity: 0 }}
@@ -31,96 +85,215 @@ export default function BuyerProfile() {
             transition={{ delay: 0.1, type: "spring", stiffness: 260 }}
             className="relative flex-shrink-0"
           >
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center border-4 border-[#0D631B]">
-              <i className="ri-user-3-line text-3xl text-white" />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-[#0D631B] flex items-center justify-center border-4 border-[#0D631B]">
+              <span className="text-2xl font-bold text-white">{initials}</span>
             </div>
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center border-2 border-white">
               <i className="ri-checkbox-circle-fill text-white text-xs" />
             </div>
           </motion.div>
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-xl font-bold text-gray-900">Chidi Okechukwu</h2>
+              <h2 className="text-xl font-bold text-gray-900">{displayName}</h2>
               <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 text-[#0D631B] text-xs font-semibold">
                 <i className="ri-checkbox-circle-line" /> Verified Buyer
               </span>
             </div>
-            <p className="text-gray-400 text-sm mt-1">Lagos, Nigeria • Member since October 2022</p>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {["Tubers", "Organic", "Bulk Purchases"].map((tag) => (
-                <motion.span
-                  key={tag}
-                  whileHover={{ scale: 1.05 }}
-                  className="px-3 py-1 rounded-full border border-gray-200 text-gray-600 text-xs cursor-default"
-                >
-                  {tag}
-                </motion.span>
-              ))}
+            <p className="text-gray-400 text-sm mt-1">{location} · Member since {memberSince}</p>
+            <div className="flex gap-4 mt-3 text-sm text-gray-500">
+              <span className="flex items-center gap-1.5">
+                <i className="ri-mail-line text-gray-400" /> {email}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <i className="ri-phone-line text-gray-400" /> {phone}
+              </span>
             </div>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-medium hover:bg-[#0a4f15] transition-colors flex-shrink-0 self-start"
-          >
-            <i className="ri-pencil-line" /> Edit Profile
-          </motion.button>
         </div>
       </motion.div>
 
       {/* Stats */}
-      <motion.div
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-        variants={staggerContainer}
-      >
-        {stats.map((s) => (
+      <motion.div className="grid grid-cols-2 sm:grid-cols-4 gap-4" variants={staggerContainer}>
+        {[
+          {
+            label: "Total Orders",
+            value: loading ? "—" : orders.length,
+            icon: "ri-shopping-bag-line",
+            iconBg: "bg-blue-100",
+            iconColor: "text-blue-600",
+            accent: "border-l-4 border-blue-400",
+          },
+          {
+            label: "Total Spent",
+            value: loading ? "—" : `₦${totalSpent.toLocaleString("en-NG")}`,
+            icon: "ri-money-dollar-circle-line",
+            iconBg: "bg-green-100",
+            iconColor: "text-[#0D631B]",
+            accent: "border-l-4 border-[#0D631B]",
+          },
+          {
+            label: "Active Orders",
+            value: loading ? "—" : activeOrders.length,
+            icon: "ri-lock-line",
+            iconBg: "bg-amber-100",
+            iconColor: "text-amber-600",
+            accent: "border-l-4 border-amber-400",
+          },
+          {
+            label: "Disputes",
+            value: loading ? "—" : disputedOrders.length,
+            icon: "ri-alert-line",
+            iconBg: "bg-red-100",
+            iconColor: "text-red-500",
+            accent: "border-l-4 border-red-400",
+          },
+        ].map((s) => (
           <motion.div
             key={s.label}
             variants={scaleIn}
             whileHover={{ scale: 1.02 }}
-            className={`bg-white rounded-2xl p-5 border border-gray-100 ${s.accent}`}
+            className={`bg-white rounded-2xl p-4 border border-gray-100 ${s.accent}`}
           >
-            <p className="text-sm text-gray-500 mb-2">{s.label}</p>
-            <p className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              {s.value}
-              {s.icon && <i className={`${s.icon} text-blue-400 text-2xl`} />}
-            </p>
-            {s.note && <p className="text-xs text-gray-400 mt-1">{s.note}</p>}
+            <div className={`w-8 h-8 rounded-lg ${s.iconBg} flex items-center justify-center mb-3`}>
+              <i className={`${s.icon} ${s.iconColor}`} />
+            </div>
+            <p className="text-gray-400 text-xs mb-1">{s.label}</p>
+            <p className="text-xl font-bold text-gray-900">{s.value}</p>
           </motion.div>
         ))}
       </motion.div>
 
-      {/* Recent Orders */}
-      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">Recent Orders</h2>
-          <button className="text-sm text-[#0D631B] font-medium hover:underline flex items-center gap-1">
-            View All <i className="ri-arrow-right-line" />
-          </button>
-        </div>
-        <div className="divide-y divide-gray-50">
-          {recentOrders.map((o, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 + i * 0.08 }}
-              className="flex items-center gap-3 md:gap-4 px-4 md:px-6 py-4 hover:bg-gray-50/50 transition-colors"
-            >
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
-                <i className={`${o.thumb} text-stone-500 text-lg md:text-xl`} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Recent Orders */}
+        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900">Recent Orders</h2>
+            <Link href="/dashboard/buyer/orders" className="text-sm text-[#0D631B] font-medium hover:underline flex items-center gap-1">
+              View All <i className="ri-arrow-right-s-line" />
+            </Link>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+              <i className="ri-loader-4-line animate-spin mr-2" /> Loading...
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-gray-400 text-sm">
+              <i className="ri-inbox-line text-2xl mb-1" />
+              No orders yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {orders.slice(0, 5).map((o, i) => {
+                const st = ORDER_STATUS[o.status];
+                return (
+                  <motion.div
+                    key={o.order_id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 + i * 0.06 }}
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/50 transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                      <i className="ri-box-3-line text-stone-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{o.listing.product_name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{relativeDate(o.created_at)}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-[#0D631B]">₦{o.total_amount.toLocaleString("en-NG")}</p>
+                      <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${st.badge}`}>
+                        {st.label}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Wallet & Transactions */}
+        <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900">Wallet</h2>
+            <Link href="/dashboard/buyer/wallet" className="text-sm text-[#0D631B] font-medium hover:underline flex items-center gap-1">
+              Manage <i className="ri-arrow-right-s-line" />
+            </Link>
+          </div>
+
+          {/* Balance pill */}
+          <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+              <i className="ri-bank-line text-[#0D631B]" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Available Balance</p>
+              <p className="text-lg font-bold text-gray-900">{availableBalance}</p>
+            </div>
+          </div>
+
+          {/* Transactions */}
+          {loading ? (
+            <div className="flex items-center justify-center h-28 text-gray-400 text-sm">
+              <i className="ri-loader-4-line animate-spin mr-2" /> Loading...
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-28 text-gray-400 text-sm">
+              <i className="ri-exchange-line text-2xl mb-1" />
+              No transactions yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {transactions.slice(0, 4).map((t, i) => {
+                const isCredit = t.type === "credit";
+                const amount = koboToNaira(parseInt(t.amount, 10));
+                return (
+                  <motion.div
+                    key={t.transaction_id}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 + i * 0.06 }}
+                    className="flex items-center gap-3 px-5 py-3.5"
+                  >
+                    <i className={`${TX_ICON[t.type]} text-xl flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {t.description ?? (isCredit ? "Wallet Top-Up" : "Payment")}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{relativeDate(t.created_at)}</p>
+                    </div>
+                    <p className={`text-sm font-bold flex-shrink-0 ${isCredit ? "text-green-600" : "text-red-500"}`}>
+                      {isCredit ? "+" : "-"}₦{amount.toLocaleString("en-NG")}
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Account Details */}
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 p-5 md:p-6">
+        <h2 className="text-base font-bold text-gray-900 mb-4">Account Details</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          {[
+            { label: "Full Name",       value: displayName,                      icon: "ri-user-line" },
+            { label: "Email",           value: email,                            icon: "ri-mail-line" },
+            { label: "Phone",           value: phone,                            icon: "ri-phone-line" },
+            { label: "Location",        value: location,                         icon: "ri-map-pin-line" },
+            { label: "Email Verified",  value: user?.emailVerified ? "Yes" : "No", icon: "ri-checkbox-circle-line" },
+            { label: "Member Since",    value: memberSince,                      icon: "ri-calendar-line" },
+          ].map((row) => (
+            <div key={row.label} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50">
+              <i className={`${row.icon} text-gray-400 mt-0.5 flex-shrink-0`} />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">{row.label}</p>
+                <p className="text-gray-900 font-medium truncate mt-0.5">{row.value}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{o.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5 truncate">{o.ref}</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-sm font-bold text-[#0D631B]">{o.amount}</p>
-                <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${o.statusBg} ${o.statusText}`}>
-                  {o.status}
-                </span>
-              </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </motion.div>
