@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { marketplaceApi, type CreateListingData } from "@/lib/api";
+import Image from "next/image";
 
 const CATEGORIES = [
   "Grains & Cereals",
@@ -23,6 +24,7 @@ interface Props {
 export default function ListProductModal({ onClose, onCreated }: Props) {
   const photoRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Form state
   const [productName, setProductName] = useState("");
@@ -42,6 +44,7 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImageFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -64,22 +67,29 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
     if (!pricePerUnit || isNaN(price) || price <= 0) { setFormError("Enter a valid price per unit."); return; }
     if (deliveryOptions.length === 0) { setFormError("Select at least one delivery option."); return; }
 
-    const data: CreateListingData = {
-      product_name: productName.trim(),
-      category,
-      quantity: qty,
-      unit,
-      price_per_unit: price,
-      location_state: locationState.trim(),
-      location_lga: locationLga.trim() || undefined,
-      description: description.trim() || undefined,
-      harvest_date: harvestDate || null,
-      delivery_options: deliveryOptions,
-      status,
-    };
-
     setLoading(true);
     try {
+      let images: string[] = [];
+      if (imageFile) {
+        const url = await marketplaceApi.uploadImage(imageFile);
+        images = [url];
+      }
+
+      const data: CreateListingData = {
+        product_name: productName.trim(),
+        category,
+        quantity: qty,
+        unit,
+        price_per_unit: price,
+        location_state: locationState.trim(),
+        location_lga: locationLga.trim() || undefined,
+        description: description.trim() || undefined,
+        harvest_date: harvestDate || null,
+        delivery_options: deliveryOptions,
+        images,
+        status,
+      };
+
       await marketplaceApi.createListing(data);
       onCreated();
     } catch (err) {
@@ -251,9 +261,9 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
             <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
             {preview ? (
               <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200">
-                <img src={preview} alt="Product preview" className="w-full h-52 object-cover" />
+                <Image src={preview} alt="Product preview" fill className="object-cover" />
                 <button
-                  onClick={() => { setPreview(null); if (photoRef.current) photoRef.current.value = ""; }}
+                  onClick={() => { setPreview(null); setImageFile(null); if (photoRef.current) photoRef.current.value = ""; }}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
                 >
                   <i className="ri-close-line text-sm" />

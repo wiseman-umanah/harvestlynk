@@ -264,11 +264,15 @@ export default function BuyerDashboard() {
                   whileHover={{ y: -4, transition: { duration: 0.2 } }}
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100"
                 >
-                  <div className={`relative h-36 bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
-                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
+                  <div className={`relative h-36 overflow-hidden ${!p.images?.length ? `bg-gradient-to-br ${style.bg}` : ""} flex items-center justify-center`}>
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                       <i className="ri-checkbox-circle-fill text-xs" /> ACTIVE
                     </div>
-                    <i className={`${style.icon} text-4xl`} />
+                    {p.images?.length ? (
+                      <img src={p.images[0]} alt={p.product_name} className="w-full h-full object-cover" />
+                    ) : (
+                      <i className={`${style.icon} text-4xl`} />
+                    )}
                   </div>
                   <div className="p-3">
                     <div className="flex items-center justify-between mb-1">

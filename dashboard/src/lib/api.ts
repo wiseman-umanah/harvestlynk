@@ -90,7 +90,7 @@ export interface Listing {
   inquiries: number;
   harvest_date: string | null;
   delivery_options: string[] | null;
-  images: unknown | null;
+  images: string[] | null;
   expires_at: string;
   created_at: string;
   updated_at: string;
@@ -108,6 +108,7 @@ export interface CreateListingData {
   description?: string;
   harvest_date?: string | null;
   delivery_options?: string[];
+  images?: string[];
   status?: "active" | "paused";
 }
 
@@ -152,13 +153,13 @@ export function nairaToKobo(naira: number): number {
 // ─── Base fetch ────────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: isFormData
+      ? (init?.headers ?? {})
+      : { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
 
   const text = await res.text();
@@ -298,6 +299,16 @@ export const marketplaceApi = {
 
   deleteListing: (id: string) =>
     apiFetch<void>(`/marketplace/listings/${id}`, { method: "DELETE" }),
+
+  uploadImage: async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await apiFetch<{ url: string }>("/marketplace/upload", {
+      method: "POST",
+      body: form,
+    });
+    return res.url;
+  },
 };
 
 // ─── Orders API ───────────────────────────────────────────────────────────────

@@ -164,11 +164,15 @@ function MyFarmInner() {
                   whileHover={{ y: -4, transition: { duration: 0.2 } }}
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100"
                 >
-                  <div className={`relative h-40 bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
-                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
+                  <div className={`relative h-40 overflow-hidden ${!item.images?.length ? `bg-gradient-to-br ${style.bg}` : ""} flex items-center justify-center`}>
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                       <i className="ri-checkbox-circle-fill text-xs" /> ACTIVE
                     </div>
-                    <i className={`${style.icon} text-4xl`} />
+                    {item.images?.length ? (
+                      <img src={item.images[0]} alt={item.product_name} className="w-full h-full object-cover" />
+                    ) : (
+                      <i className={`${style.icon} text-4xl`} />
+                    )}
                   </div>
                   <div className="p-4">
                     <p className="font-semibold text-gray-900 text-sm mb-0.5">{item.product_name}</p>
@@ -226,8 +230,12 @@ function MyFarmInner() {
                     <tr key={row.listing_id} className="hover:bg-gray-50">
                       <td className="px-4 md:px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
-                            <i className={`${style.icon} text-sm`} />
+                          <div className={`w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 ${!row.images?.length ? `bg-gradient-to-br ${style.bg}` : ""} flex items-center justify-center`}>
+                            {row.images?.length ? (
+                              <img src={row.images[0]} alt={row.product_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <i className={`${style.icon} text-sm`} />
+                            )}
                           </div>
                           <span className="font-medium text-gray-900">{row.product_name}</span>
                         </div>
