@@ -20,7 +20,6 @@ export default function TrustSection() {
     <section className="bg-gray-50 py-20">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* FarmConnect card */}
           <motion.div
             className="relative rounded-3xl overflow-hidden"
             variants={fadeLeft}
@@ -30,7 +29,7 @@ export default function TrustSection() {
           >
             <Image
               src="/farmconnect.png"
-              alt="FarmConnect produce"
+              alt="HarvestLynk produce"
               width={600}
               height={480}
               className="w-full object-cover rounded-3xl"
@@ -76,7 +75,7 @@ export default function TrustSection() {
             viewport={{ once: true, amount: 0.3 }}
           >
             <motion.p variants={fadeRight} className="text-sm font-semibold text-[#1e5631] tracking-widest uppercase mb-3">
-              The FarmConnect Promise
+              The HarvestLynk Promise
             </motion.p>
             <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
               Zero Risk. Total Transparency.

@@ -7,7 +7,7 @@ const features = [
     icon: "ri-shield-check-line",
     title: "Verified Farmers",
     description:
-      "Every producer on FarmConnect undergoes a rigorous on-site verification process to ensure authenticity and quality.",
+      "Every producer on HarvestLynk undergoes a rigorous on-site verification process to ensure authenticity and quality.",
   },
   {
     icon: "ri-truck-line",

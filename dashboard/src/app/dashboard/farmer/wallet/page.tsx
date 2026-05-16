@@ -94,7 +94,7 @@ export default function Wallet() {
               <i className="ri-information-line" /> Settlement Policy
             </p>
             <p className="text-green-200 text-xs leading-relaxed mb-4">
-              FarmConnect ensures secure escrow for all transactions. A flat 10% platform commission applies to maintain the trust ecosystem.
+              HarvestLynk ensures secure escrow for all transactions. A flat 10% platform commission applies to maintain the trust ecosystem.
             </p>
             <div className="space-y-2 text-sm border-t border-green-700 pt-4">
               <div className="flex justify-between">

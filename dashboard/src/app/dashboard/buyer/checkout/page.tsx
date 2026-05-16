@@ -271,7 +271,7 @@ function StepPayment() {
     {
       id: "wallet",
       icon: "ri-wallet-3-line",
-      label: "FarmConnect Wallet",
+      label: "HarvestLynk Wallet",
       sub: "Current Balance: ₦60,000.00",
       badge: "RECOMMENDED",
     },
@@ -386,7 +386,7 @@ function StepReview({ onConfirm }: { onConfirm: () => void }) {
           <p className="text-sm font-bold text-[#0D631B] flex items-center gap-1.5 mb-2">
             <i className="ri-bank-card-line" /> Payment Method
           </p>
-          <p className="text-sm text-gray-700">FarmConnect Wallet (Ending in ...889)</p>
+          <p className="text-sm text-gray-700">HarvestLynk Wallet (Ending in ...889)</p>
           <button className="text-xs text-[#0D631B] font-semibold mt-1 hover:underline">Change</button>
         </div>
       </div>
@@ -431,7 +431,7 @@ function StepReview({ onConfirm }: { onConfirm: () => void }) {
         />
         <span className="text-xs text-gray-600 leading-relaxed">
           I agree to the{" "}
-          <span className="text-[#0D631B] font-semibold">FarmConnect Escrow Protection terms</span>
+          <span className="text-[#0D631B] font-semibold">HarvestLynk Escrow Protection terms</span>
           . My payment will be held securely and only released to the farmers after I confirm receipt of the items.
         </span>
       </label>

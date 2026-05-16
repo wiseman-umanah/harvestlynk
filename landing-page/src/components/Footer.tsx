@@ -66,7 +66,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-white/10 text-center text-gray-500 text-xs">
-          © 2025 FarmConnect. Secure Farms Protected System.
+          © {new Date().getFullYear()} HarvestLynk. Secure Farms Protected System.
         </div>
       </div>
     </footer>
