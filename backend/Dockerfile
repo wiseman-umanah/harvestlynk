@@ -16,4 +16,4 @@ RUN bun run build
 ENV NODE_ENV=production
 EXPOSE 8000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "bunx prisma migrate deploy && node dist/main"]
