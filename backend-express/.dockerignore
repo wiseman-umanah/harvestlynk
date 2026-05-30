@@ -1,0 +1,24 @@
+# Dependencies — reinstalled inside the image
+node_modules
+
+# Compiled output — built inside the image
+dist
+
+# Secrets — NEVER bake into the image; pass as env vars at runtime
+.env
+.env.*
+
+# Test files — not needed at runtime and excluded so tsc skips them
+src/tests
+
+# Dev-only config files
+drizzle.config.ts
+vitest.config.ts
+
+# Drizzle migration artefacts (schema is applied separately, not at build time)
+drizzle
+
+# Misc
+.git
+.gitignore
+*.md

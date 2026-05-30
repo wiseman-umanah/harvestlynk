@@ -24,13 +24,44 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const CACHE_KEY = "hl_user_cache";
 
+const DEV_BYPASS = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
+
+const DEV_USER: User = {
+  id: "dev-bypass-user",
+  name: "Dev Farmer",
+  email: "dev@harvestlynk.local",
+  emailVerified: true,
+  image: null,
+  phoneNumber: null,
+  role: "farmer",
+  farmName: "Dev Farm",
+  location: "Lagos",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  location_state: "Lagos",
+  location_lga: null,
+  location_village: null,
+  bank_name: null,
+  bank_account_number: null,
+  bank_account_name: null,
+  liveness_verified: false,
+  trust_score: 0,
+  preferred_language: "English",
+  wallet: {
+    available_balance: "0",
+    pending_balance: "0",
+    total_paid_in: "0",
+  },
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [wallet, setWallet] = useState<WalletBalance | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(DEV_BYPASS ? DEV_USER : null);
+  const [wallet, setWallet] = useState<WalletBalance | null>(DEV_BYPASS ? DEV_USER.wallet : null);
+  const [loading, setLoading] = useState(!DEV_BYPASS);
 
   // Hydrate from cache immediately for fast initial render
   useEffect(() => {
+    if (DEV_BYPASS) return;
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       try {
@@ -45,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Then verify session with server and refresh data
   const loadFromSession = useCallback(async () => {
+    if (DEV_BYPASS) return;
     try {
       const session = await authApi.getSession();
       if (session?.user?.id) {

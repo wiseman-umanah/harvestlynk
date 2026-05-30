@@ -23,11 +23,13 @@ const CATEGORY_STYLE: Record<string, { bg: string; icon: string }> = {
 };
 
 const ORDER_STATUS: Record<BuyerOrder["status"], { label: string; icon: string; badge: string }> = {
-  pending_payment: { label: "Awaiting Payment",  icon: "ri-time-line",            badge: "bg-red-100 text-red-700" },
-  processing:      { label: "In Escrow",         icon: "ri-lock-line",            badge: "bg-blue-100 text-blue-700" },
-  completed:       { label: "Delivered",         icon: "ri-checkbox-circle-line", badge: "bg-green-100 text-green-700" },
-  cancelled:       { label: "Cancelled",         icon: "ri-close-circle-line",    badge: "bg-gray-100 text-gray-500" },
-  disputed:        { label: "Disputed",          icon: "ri-alert-line",           badge: "bg-orange-100 text-orange-700" },
+  pending_payment:   { label: "Awaiting Payment",  icon: "ri-time-line",            badge: "bg-red-100 text-red-700" },
+  payment_confirmed: { label: "Payment Confirmed", icon: "ri-secure-payment-line",  badge: "bg-blue-100 text-blue-700" },
+  processing:        { label: "In Escrow",         icon: "ri-lock-line",            badge: "bg-blue-100 text-blue-700" },
+  ready_for_pickup:  { label: "Ready for Pickup",  icon: "ri-store-2-line",         badge: "bg-purple-100 text-purple-700" },
+  completed:         { label: "Delivered",         icon: "ri-checkbox-circle-line", badge: "bg-green-100 text-green-700" },
+  cancelled:         { label: "Cancelled",         icon: "ri-close-circle-line",    badge: "bg-gray-100 text-gray-500" },
+  disputed:          { label: "Disputed",          icon: "ri-alert-line",           badge: "bg-orange-100 text-orange-700" },
 };
 
 function relativeDate(iso: string) {

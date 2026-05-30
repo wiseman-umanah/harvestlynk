@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { useNotifications } from "@/hooks/useNotifications";
 import { formatNaira } from "@/lib/api";
 
 interface Props {
@@ -27,6 +28,7 @@ export default function Topbar({ onMenuToggle }: Props) {
     : "/dashboard/farmer/notifications";
 
   const { totalItems } = useCart();
+  const { unreadCount } = useNotifications();
   const displayName = user?.name?.split(" ")[0] ?? (isBuyer ? "Buyer" : "Farmer");
   const initial = displayName.charAt(0).toUpperCase();
   const walletDisplay = wallet ? formatNaira(wallet.available_balance) : "₦0.00";
@@ -80,9 +82,9 @@ export default function Topbar({ onMenuToggle }: Props) {
         {/* Bell */}
         <Link href={notificationsHref} className="relative text-gray-500 hover:text-gray-800 transition-colors">
           <i className="ri-notification-3-line text-xl" />
-          {unverified && (
+          {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-              1
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </Link>

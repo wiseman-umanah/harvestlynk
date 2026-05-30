@@ -9,11 +9,13 @@ const STATUS_CONFIG: Record<
   BuyerOrder["status"],
   { label: string; style: string; icon: string }
 > = {
-  pending_payment: { label: "Awaiting Payment",  style: "bg-red-100 text-red-700",     icon: "ri-time-line" },
-  processing:      { label: "Secured in Escrow", style: "bg-blue-100 text-blue-700",   icon: "ri-lock-line" },
-  completed:       { label: "Delivered",         style: "bg-green-100 text-green-700", icon: "ri-checkbox-circle-line" },
-  cancelled:       { label: "Cancelled",         style: "bg-gray-100 text-gray-500",   icon: "ri-close-circle-line" },
-  disputed:        { label: "Disputed",          style: "bg-orange-100 text-orange-700", icon: "ri-alert-line" },
+  pending_payment:   { label: "Awaiting Payment",   style: "bg-red-100 text-red-700",     icon: "ri-time-line" },
+  payment_confirmed: { label: "Payment Confirmed",  style: "bg-blue-100 text-blue-700",   icon: "ri-secure-payment-line" },
+  processing:        { label: "Secured in Escrow",  style: "bg-blue-100 text-blue-700",   icon: "ri-lock-line" },
+  ready_for_pickup:  { label: "Ready for Pickup",   style: "bg-purple-100 text-purple-700", icon: "ri-store-2-line" },
+  completed:         { label: "Delivered",          style: "bg-green-100 text-green-700", icon: "ri-checkbox-circle-line" },
+  cancelled:         { label: "Cancelled",          style: "bg-gray-100 text-gray-500",   icon: "ri-close-circle-line" },
+  disputed:          { label: "Disputed",           style: "bg-orange-100 text-orange-700", icon: "ri-alert-line" },
 };
 
 function relativeDate(iso: string) {

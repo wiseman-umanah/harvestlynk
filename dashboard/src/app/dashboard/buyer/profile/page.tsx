@@ -27,11 +27,13 @@ function relativeDate(iso: string) {
 }
 
 const ORDER_STATUS: Record<BuyerOrder["status"], { label: string; badge: string }> = {
-  pending_payment: { label: "Awaiting Payment",  badge: "bg-red-100 text-red-700" },
-  processing:      { label: "In Escrow",         badge: "bg-blue-100 text-blue-700" },
-  completed:       { label: "Delivered",         badge: "bg-green-100 text-green-700" },
-  cancelled:       { label: "Cancelled",         badge: "bg-gray-100 text-gray-500" },
-  disputed:        { label: "Disputed",          badge: "bg-orange-100 text-orange-700" },
+  pending_payment:   { label: "Awaiting Payment",  badge: "bg-red-100 text-red-700" },
+  payment_confirmed: { label: "Payment Confirmed", badge: "bg-blue-100 text-blue-700" },
+  processing:        { label: "In Escrow",         badge: "bg-blue-100 text-blue-700" },
+  ready_for_pickup:  { label: "Ready for Pickup",  badge: "bg-purple-100 text-purple-700" },
+  completed:         { label: "Delivered",         badge: "bg-green-100 text-green-700" },
+  cancelled:         { label: "Cancelled",         badge: "bg-gray-100 text-gray-500" },
+  disputed:          { label: "Disputed",          badge: "bg-orange-100 text-orange-700" },
 };
 
 export default function BuyerProfile() {

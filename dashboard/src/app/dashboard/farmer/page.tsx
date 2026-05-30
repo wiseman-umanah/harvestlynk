@@ -28,11 +28,13 @@ const ORDER_STATUS: Record<
   FarmerOrder["status"],
   { label: string; dot: string }
 > = {
-  pending_payment: { label: "Awaiting Payment",    dot: "bg-red-400" },
-  processing:      { label: "Secured in Escrow",   dot: "bg-amber-400" },
-  completed:       { label: "Funds Released",       dot: "bg-green-500" },
-  cancelled:       { label: "Cancelled",            dot: "bg-gray-400" },
-  disputed:        { label: "Disputed",             dot: "bg-orange-500" },
+  pending_payment:   { label: "Awaiting Payment",   dot: "bg-red-400" },
+  payment_confirmed: { label: "Payment Confirmed",  dot: "bg-blue-400" },
+  processing:        { label: "Secured in Escrow",  dot: "bg-amber-400" },
+  ready_for_pickup:  { label: "Ready for Pickup",   dot: "bg-purple-400" },
+  completed:         { label: "Funds Released",     dot: "bg-green-500" },
+  cancelled:         { label: "Cancelled",          dot: "bg-gray-400" },
+  disputed:          { label: "Disputed",           dot: "bg-orange-500" },
 };
 
 export default function FarmerDashboard() {
