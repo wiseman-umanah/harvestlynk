@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -35,5 +35,13 @@ app.use("/marketplace", marketplaceRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/notifications", notificationsRoutes);
 app.use("/scans", scansRoutes);
+
+const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  console.error("[error]", err?.message ?? err);
+  if (err?.cause) console.error("[cause]", err.cause);
+  if (!res.headersSent) res.status(500).json({ error: "Internal server error" });
+};
+
+app.use(errorHandler);
 
 export default app;
