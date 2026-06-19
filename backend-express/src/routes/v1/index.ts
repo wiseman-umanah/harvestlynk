@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type IRouter } from "express";
 import authRoutes from "./auth.js";
 import usersRoutes from "./users.js";
 import walletRoutes from "./wallet.js";
@@ -7,7 +7,7 @@ import ordersRoutes from "./orders.js";
 import notificationsRoutes from "./notifications.js";
 import scansRoutes from "./scans.js";
 
-const v1 = Router();
+const v1: IRouter = Router();
 
 v1.use("/auth", authRoutes);
 v1.use("/users", usersRoutes);

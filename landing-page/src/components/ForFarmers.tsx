@@ -3,6 +3,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { fadeLeft, fadeRight, staggerContainer, fadeUp } from "@/lib/motion";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
 const benefits = [
   { icon: "ri-global-line", text: "Reach a wider audience across the nation, bypassing traditional middlemen to maximize your profits." },
   { icon: "ri-secure-payment-line", text: "Guaranteed payments through our secure escrow, ensuring you get paid for every successful delivery." },
@@ -51,7 +53,7 @@ export default function ForFarmers() {
               </ul>
               <motion.a
                 variants={fadeUp}
-                href="#"
+                href={`${APP_URL}/signup/farmer`}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
                 className="inline-flex items-center justify-center w-fit px-6 py-3 rounded-full bg-[#e8a000] text-white font-medium hover:bg-[#d09000] transition-colors"

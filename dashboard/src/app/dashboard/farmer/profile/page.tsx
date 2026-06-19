@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import {
   marketplaceApi,
   walletApi,
+  usersApi,
   formatNaira,
   type Listing,
   type Transaction,
@@ -36,6 +37,14 @@ export default function Profile() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
@@ -351,6 +360,77 @@ export default function Profile() {
                 </table>
               </div>
             )}
+          </div>
+          {/* Change Password */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+            <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <i className="ri-shield-keyhole-line text-[#0D631B]" /> Change Password
+            </h3>
+            <div className="space-y-3">
+              {[
+                { label: "Current Password", value: currentPw, set: setCurrentPw },
+                { label: "New Password",     value: newPw,     set: setNewPw },
+                { label: "Confirm Password", value: confirmPw, set: setConfirmPw },
+              ].map(({ label, value, set }) => (
+                <div key={label}>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
+                  <div className="relative">
+                    <input
+                      type={showPw ? "text" : "password"}
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setShowPw((p) => !p)}
+                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+              >
+                <i className={showPw ? "ri-eye-off-line" : "ri-eye-line"} />
+                {showPw ? "Hide" : "Show"} passwords
+              </button>
+
+              {pwError && (
+                <p className="text-red-500 text-xs p-2.5 bg-red-50 rounded-xl">{pwError}</p>
+              )}
+              {pwSuccess && (
+                <p className="text-green-600 text-xs p-2.5 bg-green-50 rounded-xl flex items-center gap-1">
+                  <i className="ri-checkbox-circle-line" /> Password changed successfully.
+                </p>
+              )}
+
+              <button
+                onClick={async () => {
+                  setPwError("");
+                  setPwSuccess(false);
+                  if (!currentPw || !newPw || !confirmPw) { setPwError("Please fill in all fields."); return; }
+                  if (newPw.length < 8) { setPwError("New password must be at least 8 characters."); return; }
+                  if (newPw !== confirmPw) { setPwError("Passwords do not match."); return; }
+                  setPwLoading(true);
+                  try {
+                    await usersApi.changePassword(currentPw, newPw);
+                    setPwSuccess(true);
+                    setCurrentPw(""); setNewPw(""); setConfirmPw("");
+                  } catch (err) {
+                    setPwError(err instanceof Error ? err.message : "Failed to change password.");
+                  } finally {
+                    setPwLoading(false);
+                  }
+                }}
+                disabled={pwLoading}
+                className="w-full py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-semibold hover:bg-[#0a4f15] transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {pwLoading
+                  ? <><i className="ri-loader-4-line animate-spin" /> Updating…</>
+                  : "Update Password"
+                }
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

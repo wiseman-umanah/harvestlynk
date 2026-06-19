@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
+import { scansApi } from "@/lib/api";
 
 interface TreatmentDetail {
   symptoms: string;
@@ -60,6 +61,22 @@ export default function AICropDoctor() {
 
       const data: PredictionResult = await res.json();
       setResult(data);
+
+      // Save scan record to backend (fire-and-forget, don't block the UI)
+      const cropType = data.prediction.split(/[\s_]/)[0] ?? "Unknown";
+      const severity: "low" | "medium" | "high" =
+        data.confidence >= 0.8 ? "high" : data.confidence >= 0.5 ? "medium" : "low";
+      scansApi.createScan(file, cropType, undefined, {
+        disease: data.prediction,
+        confidence: data.confidence,
+        severity,
+        recommendations: {
+          symptoms: data.treatment.symptoms,
+          cause: data.treatment.cause,
+          treatment: data.treatment.treatment,
+          prevention: data.treatment.prevention,
+        },
+      }).catch(() => { /* ignore — scan history is best-effort */ });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
     } finally {

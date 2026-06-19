@@ -41,6 +41,11 @@ function relativeDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short" });
 }
 
+const ADVANCE_LABEL: Partial<Record<FarmerOrder["status"], string>> = {
+  payment_confirmed: "Mark Processing",
+  processing: "Mark Ready",
+};
+
 type Tab = "all" | "active" | "completed";
 
 export default function Orders() {
@@ -48,6 +53,7 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<FarmerOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -62,6 +68,20 @@ export default function Orders() {
   }, []);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  async function handleAdvance(orderId: string) {
+    setAdvancingId(orderId);
+    try {
+      const { status } = await ordersApi.updateStatus(orderId);
+      setOrders((prev) =>
+        prev.map((o) => (o.order_id === orderId ? { ...o, status: status as FarmerOrder["status"] } : o))
+      );
+    } catch {
+      // silently fail — order stays as-is
+    } finally {
+      setAdvancingId(null);
+    }
+  }
 
   const filtered = orders.filter((o) => {
     const matchTab =
@@ -167,6 +187,7 @@ export default function Orders() {
                   <th className="text-left px-4 md:px-6 py-3 font-medium">Delivery</th>
                   <th className="text-left px-4 md:px-6 py-3 font-medium">Status</th>
                   <th className="text-left px-4 md:px-6 py-3 font-medium">Date</th>
+                  <th className="text-left px-4 md:px-6 py-3 font-medium">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -210,6 +231,22 @@ export default function Orders() {
                       </td>
                       <td className="px-4 md:px-6 py-4 text-gray-400 text-xs">
                         {relativeDate(o.created_at)}
+                      </td>
+                      <td className="px-4 md:px-6 py-4">
+                        {ADVANCE_LABEL[o.status] && (
+                          <motion.button
+                            whileHover={{ scale: 1.04 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => handleAdvance(o.order_id)}
+                            disabled={advancingId === o.order_id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D631B] text-white text-xs font-semibold hover:bg-[#0a4f15] transition-colors disabled:opacity-60 whitespace-nowrap"
+                          >
+                            {advancingId === o.order_id
+                              ? <><i className="ri-loader-4-line animate-spin" /> Updating...</>
+                              : <><i className="ri-arrow-right-circle-line" /> {ADVANCE_LABEL[o.status]}</>
+                            }
+                          </motion.button>
+                        )}
                       </td>
                     </motion.tr>
                   );

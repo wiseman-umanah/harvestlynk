@@ -34,6 +34,7 @@ export default function BuyerOrders() {
   const [orders, setOrders] = useState<BuyerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -48,6 +49,20 @@ export default function BuyerOrders() {
   }, []);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  async function handleSimulatePayment(orderId: string) {
+    setPayingId(orderId);
+    try {
+      await ordersApi.simulatePayment(orderId);
+      setOrders((prev) =>
+        prev.map((o) => (o.order_id === orderId ? { ...o, status: "payment_confirmed" } : o)),
+      );
+    } catch {
+      // silently fail — order stays as-is
+    } finally {
+      setPayingId(null);
+    }
+  }
 
   async function handleConfirmDelivery(orderId: string) {
     setConfirmingId(orderId);
@@ -209,7 +224,22 @@ export default function BuyerOrders() {
                           #{o.order_id.slice(0, 8).toUpperCase()}
                         </span>
                       </div>
-                      {o.status === "processing" && (
+                      <div className="flex items-center gap-2">
+                      {o.status === "pending_payment" && (
+                        <motion.button
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => handleSimulatePayment(o.order_id)}
+                          disabled={payingId === o.order_id}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-60"
+                        >
+                          {payingId === o.order_id
+                            ? <><i className="ri-loader-4-line animate-spin" /> Processing...</>
+                            : <><i className="ri-secure-payment-line" /> Pay Now</>
+                          }
+                        </motion.button>
+                      )}
+                      {(o.status === "processing" || o.status === "ready_for_pickup") && (
                         <motion.button
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.97 }}
@@ -223,6 +253,7 @@ export default function BuyerOrders() {
                           }
                         </motion.button>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>

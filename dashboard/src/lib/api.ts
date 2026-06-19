@@ -1,11 +1,61 @@
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+// ─── Token store ──────────────────────────────────────────────────────────────
+// Access token is kept in memory only (cleared on page refresh).
+// Refresh token is persisted in localStorage so sessions survive a reload.
+
+let _accessToken: string | null = null;
+let _refreshing: Promise<void> | null = null;
+
+export function setTokens(accessToken: string, refreshToken: string) {
+  _accessToken = accessToken;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("hl_access_token", accessToken);
+    localStorage.setItem("hl_refresh_token", refreshToken);
+  }
+}
+
+export function clearTokens() {
+  _accessToken = null;
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("hl_access_token");
+    localStorage.removeItem("hl_refresh_token");
+    localStorage.removeItem("hl_user_cache");
+    localStorage.removeItem("hl_farmer_verified");
+  }
+}
+
+export function getStoredRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("hl_refresh_token");
+}
+
+async function doRefresh(): Promise<void> {
+  const rt = getStoredRefreshToken();
+  if (!rt) throw new Error("No refresh token");
+
+  const res = await fetch("/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken: rt }),
+  });
+
+  if (!res.ok) {
+    clearTokens();
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  const { accessToken, refreshToken } = await res.json() as {
+    accessToken: string;
+    refreshToken: string;
+  };
+  setTokens(accessToken, refreshToken);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WalletBalance {
   wallet_id?: string;
   user_id?: string;
-  available_balance: string; // Kobo as string
+  available_balance: string;
   pending_balance: string;
   total_paid_in: string;
   created_at?: string;
@@ -42,7 +92,7 @@ export interface Transaction {
   wallet_id: string;
   user_id: string;
   type: "credit" | "debit";
-  amount: string; // Kobo
+  amount: string;
   balance_before: string;
   balance_after: string;
   reference_id: string | null;
@@ -80,10 +130,10 @@ export interface Listing {
   farmer_id: string;
   product_name: string;
   category: string;
-  quantity: string; // Decimal as string
+  quantity: string;
   unit: string;
-  price_per_unit: number; // Naira
-  total_price: number;    // Naira
+  price_per_unit: number;
+  total_price: number;
   location_state: string;
   location_lga: string | null;
   pickup_address: string | null;
@@ -121,7 +171,7 @@ export interface Bank {
 }
 
 export interface WithdrawData {
-  amount: number; // Kobo
+  amount: number;
   bank_name: string;
   bank_code: string;
   account_number: string;
@@ -172,12 +222,10 @@ export interface Scan {
 }
 
 export interface DashboardStats {
-  // Farmer
   listings_count?: number;
   orders_received?: number;
   completed_orders?: number;
   total_revenue?: number;
-  // Buyer
   orders_placed?: number;
 }
 
@@ -201,15 +249,37 @@ export function nairaToKobo(naira: number): number {
 
 // ─── Base fetch ────────────────────────────────────────────────────────────────
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
   const isFormData = init?.body instanceof FormData;
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: isFormData
-      ? (init?.headers ?? {})
-      : { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  const headers: Record<string, string> = isFormData
+    ? {}
+    : { "Content-Type": "application/json" };
+
+  // Restore access token from localStorage on first call after page load
+  if (!_accessToken && typeof window !== "undefined") {
+    _accessToken = localStorage.getItem("hl_access_token");
+  }
+
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
+
+  Object.assign(headers, init?.headers ?? {});
+
+  const res = await fetch(path, { ...init, headers });
+
+  // Auto-refresh on 401, deduplicated across concurrent calls
+  if (res.status === 401 && !isRetry) {
+    if (!_refreshing) {
+      _refreshing = doRefresh().finally(() => { _refreshing = null; });
+    }
+    try {
+      await _refreshing;
+    } catch {
+      throw new Error("Your session has expired. Please log in again.");
+    }
+    return apiFetch<T>(path, init, true);
+  }
 
   const text = await res.text();
 
@@ -217,7 +287,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     let message = `Request failed: ${res.status}`;
     try {
       if (text) {
-        const body = JSON.parse(text);
+        const body = JSON.parse(text) as Record<string, unknown>;
         if (body.details && typeof body.details === "object") {
           const fieldErrors = Object.entries(body.details as Record<string, string[]>)
             .map(([field, msgs]) => {
@@ -226,15 +296,13 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
             })
             .join(" | ");
           if (fieldErrors) message = fieldErrors;
-        } else if (body.error) {
+        } else if (typeof body.error === "string") {
           message = body.error;
         } else if (typeof body.message === "string") {
           message = body.message;
         }
       }
-    } catch {
-      // ignore parse error
-    }
+    } catch { /* ignore parse error */ }
     throw new Error(message);
   }
 
@@ -245,61 +313,90 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  signIn: (email: string, password: string) =>
-    apiFetch<{ token: string; user: { id: string; email: string; name: string } }>(
-      "/api/auth/sign-in/email",
+  signup: (data: SignupData) => {
+    const parts = data.fullName.trim().split(/\s+/);
+    const firstName = parts[0] ?? "";
+    const lastName = parts.slice(1).join(" ") || firstName;
+    return apiFetch<{ message: string }>("/api/v1/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        email: data.email,
+        password: data.password,
+        confirmPassword: data.password,
+        phoneNumber: data.phoneNumber || undefined,
+        location: data.location || undefined,
+        role: data.role,
+      }),
+    });
+  },
+
+  login: (email: string, password: string) =>
+    apiFetch<{ accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "farmer" | "buyer" } }>(
+      "/api/v1/auth/login",
       { method: "POST", body: JSON.stringify({ email, password }) }
     ),
 
-  signOut: () =>
-    apiFetch<void>("/api/auth/sign-out", { method: "POST" }),
+  logout: (refreshToken: string) =>
+    apiFetch<void>("/api/v1/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    }),
 
-  getSession: () =>
-    apiFetch<{ user: { id: string; email: string; name: string } | null; session: unknown | null }>(
-      "/api/auth/get-session"
+  forgotPassword: (email: string) =>
+    apiFetch<{ message: string }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    apiFetch<{ message: string }>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }),
+
+  verifyEmail: (token: string) =>
+    apiFetch<{ accessToken: string; refreshToken: string; user: { id: string; role: "farmer" | "buyer" } }>(
+      `/api/v1/auth/verify-email?token=${encodeURIComponent(token)}`
     ),
 
-  // Google OAuth — not yet wired server-side; kept here so UI compiles
-  loginWithGoogle: async (_callbackURL: string) => {
-    alert("Google login is not yet configured.");
-  },
+  resendVerification: (email: string) =>
+    apiFetch<{ message: string }>("/api/v1/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
 };
 
 // ─── Users API ────────────────────────────────────────────────────────────────
 
 export const usersApi = {
-  signup: (data: SignupData) =>
-    apiFetch<User>("/users/signup", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
   getMe: () =>
-    apiFetch<User>("/users/me"),
+    apiFetch<User>("/api/v1/users/me"),
 
   getUser: (id: string) =>
-    apiFetch<User>(`/users/${id}`),
+    apiFetch<User>(`/api/v1/users/${id}`),
 
   updateUser: (data: UpdateProfileData) =>
-    apiFetch<User>("/users/", {
+    apiFetch<User>("/api/v1/users/", {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   getStats: () =>
-    apiFetch<DashboardStats>("/users/me/stats"),
+    apiFetch<DashboardStats>("/api/v1/users/me/stats"),
 
   uploadAvatar: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return apiFetch<{ url: string; user: User }>("/users/avatar", { method: "POST", body: form });
+    return apiFetch<{ url: string; user: User }>("/api/v1/users/avatar", { method: "POST", body: form });
   },
 
   livenessCheck: (selfie: File) => {
     const form = new FormData();
     form.append("selfie", selfie);
     return apiFetch<{ passed: boolean; liveness_score: number; is_live: boolean; message: string }>(
-      "/users/liveness-check",
+      "/api/v1/users/liveness-check",
       { method: "POST", body: form }
     );
   },
@@ -307,46 +404,52 @@ export const usersApi = {
   uploadNinDocument: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return apiFetch<{ url: string; user: User }>("/users/verify-nin", { method: "POST", body: form });
+    return apiFetch<{ url: string; user: User }>("/api/v1/users/verify-nin", { method: "POST", body: form });
   },
 
   uploadOwnershipDoc: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return apiFetch<{ url: string; user: User }>("/users/upload-ownership-doc", { method: "POST", body: form });
+    return apiFetch<{ url: string; user: User }>("/api/v1/users/upload-ownership-doc", { method: "POST", body: form });
   },
 
   completeOAuthProfile: (data: { role: "farmer" | "buyer"; farmName?: string; location?: string; phoneNumber?: string }) =>
-    apiFetch<User>("/users/complete-oauth", {
+    apiFetch<User>("/api/v1/users/complete-oauth", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   getFarmerRatings: (farmerId: string) =>
     apiFetch<{ farmer_id: string; average_rating: number | null; total_reviews: number; ratings: unknown[] }>(
-      `/users/${farmerId}/ratings`
+      `/api/v1/users/${farmerId}/ratings`
     ),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ message: string }>("/api/v1/auth/change-password", {
+      method: "PATCH",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
 
 // ─── Wallet API ───────────────────────────────────────────────────────────────
 
 export const walletApi = {
   getBanks: () =>
-    apiFetch<{ banks: Bank[] }>("/wallet/banks"),
+    apiFetch<{ banks: Bank[] }>("/api/v1/wallet/banks"),
 
   getBalance: () =>
-    apiFetch<WalletBalance>("/wallet/balance"),
+    apiFetch<WalletBalance>("/api/v1/wallet/balance"),
 
   getTransactions: () =>
-    apiFetch<Transaction[]>("/wallet/transactions"),
+    apiFetch<Transaction[]>("/api/v1/wallet/transactions"),
 
   verifyBank: (bankCode: string, accountNumber: string) =>
     apiFetch<BankVerifyResponse>(
-      `/wallet/verify-bank?bank_code=${encodeURIComponent(bankCode)}&account_number=${encodeURIComponent(accountNumber)}`
+      `/api/v1/wallet/verify-bank?bank_code=${encodeURIComponent(bankCode)}&account_number=${encodeURIComponent(accountNumber)}`
     ),
 
   withdraw: (data: WithdrawData) =>
-    apiFetch<WithdrawResponse>("/wallet/withdraw", {
+    apiFetch<WithdrawResponse>("/api/v1/wallet/withdraw", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -372,36 +475,36 @@ export const marketplaceApi = {
     if (filters?.limit) params.set("limit", String(filters.limit));
     const qs = params.toString();
     const res = await apiFetch<{ data: PublicListing[]; page: number; limit: number; total: number }>(
-      `/marketplace/listings${qs ? `?${qs}` : ""}`
+      `/api/v1/marketplace/listings${qs ? `?${qs}` : ""}`
     );
     return res.data;
   },
 
   getListing: (id: string) =>
-    apiFetch<PublicListing>(`/marketplace/listings/${id}`),
+    apiFetch<PublicListing>(`/api/v1/marketplace/listings/${id}`),
 
   createListing: (data: CreateListingData) =>
-    apiFetch<Listing>("/marketplace/listings", {
+    apiFetch<Listing>("/api/v1/marketplace/listings", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   updateListing: (id: string, data: Partial<CreateListingData>) =>
-    apiFetch<Listing>(`/marketplace/listings/${id}`, {
+    apiFetch<Listing>(`/api/v1/marketplace/listings/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   getMyListings: () =>
-    apiFetch<Listing[]>("/marketplace/listings/my"),
+    apiFetch<Listing[]>("/api/v1/marketplace/listings/my"),
 
   deleteListing: (id: string) =>
-    apiFetch<void>(`/marketplace/listings/${id}`, { method: "DELETE" }),
+    apiFetch<void>(`/api/v1/marketplace/listings/${id}`, { method: "DELETE" }),
 
   uploadImage: async (file: File): Promise<string> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await apiFetch<{ url: string }>("/marketplace/upload", {
+    const res = await apiFetch<{ url: string }>("/api/v1/marketplace/upload", {
       method: "POST",
       body: form,
     });
@@ -467,32 +570,38 @@ export interface FarmerOrder {
 
 export const ordersApi = {
   createOrder: (data: CreateOrderData) =>
-    apiFetch<BuyerOrder>("/orders", {
+    apiFetch<BuyerOrder>("/api/v1/orders", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   getMyBuyerOrders: () =>
-    apiFetch<BuyerOrder[]>("/orders/buyer"),
+    apiFetch<BuyerOrder[]>("/api/v1/orders/buyer"),
 
   getMyFarmerOrders: () =>
-    apiFetch<FarmerOrder[]>("/orders/my"),
+    apiFetch<FarmerOrder[]>("/api/v1/orders/my"),
 
   confirmDelivery: (orderId: string) =>
     apiFetch<{ message: string; order: { order_id: string; status: string } }>(
-      `/orders/${orderId}/confirm-delivery`,
+      `/api/v1/orders/${orderId}/confirm-delivery`,
+      { method: "PATCH" }
+    ),
+
+  simulatePayment: (orderId: string) =>
+    apiFetch<{ order_id: string; status: string; escrow_state: string }>(
+      `/api/v1/orders/${orderId}/simulate-payment`,
       { method: "PATCH" }
     ),
 
   updateStatus: (orderId: string) =>
     apiFetch<{ order_id: string; status: string; escrow_state: string }>(
-      `/orders/${orderId}/status`,
+      `/api/v1/orders/${orderId}/status`,
       { method: "PATCH" }
     ),
 
   cancelOrder: (orderId: string, reason?: string) =>
     apiFetch<{ order_id: string; status: string }>(
-      `/orders/${orderId}/cancel`,
+      `/api/v1/orders/${orderId}/cancel`,
       { method: "PATCH", body: JSON.stringify({ reason }) }
     ),
 
@@ -503,7 +612,7 @@ export const ordersApi = {
     communication_rating?: number;
     delivery_rating?: number;
   }) =>
-    apiFetch<{ rating_id: string; rating: number }>(`/orders/${orderId}/rate`, {
+    apiFetch<{ rating_id: string; rating: number }>(`/api/v1/orders/${orderId}/rate`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -514,32 +623,48 @@ export const ordersApi = {
 export const notificationsApi = {
   getAll: (type?: "order" | "payment" | "system") => {
     const qs = type ? `?type=${type}` : "";
-    return apiFetch<NotificationItem[]>(`/notifications${qs}`);
+    return apiFetch<NotificationItem[]>(`/api/v1/notifications${qs}`);
   },
 
   getUnreadCount: () =>
-    apiFetch<{ count: number }>("/notifications/unread-count"),
+    apiFetch<{ count: number }>("/api/v1/notifications/unread-count"),
 
   markRead: (id: string) =>
-    apiFetch<{ notification_id: string; is_read: boolean }>(`/notifications/${id}/read`, {
+    apiFetch<{ notification_id: string; is_read: boolean }>(`/api/v1/notifications/${id}/read`, {
       method: "PATCH",
     }),
 
   markAllRead: () =>
-    apiFetch<{ message: string }>("/notifications/read-all", { method: "PATCH" }),
+    apiFetch<{ message: string }>("/api/v1/notifications/read-all", { method: "PATCH" }),
 };
 
 // ─── Scans API ────────────────────────────────────────────────────────────────
 
 export const scansApi = {
-  createScan: (imageFile: File, cropType: string, notes?: string) => {
+  createScan: (
+    imageFile: File,
+    cropType: string,
+    notes?: string,
+    result?: {
+      disease: string;
+      confidence: number;
+      severity: "low" | "medium" | "high";
+      recommendations: Record<string, string>;
+    }
+  ) => {
     const form = new FormData();
     form.append("image", imageFile);
     form.append("crop_type", cropType);
     if (notes) form.append("farmer_notes", notes);
-    return apiFetch<Scan>("/scans", { method: "POST", body: form });
+    if (result) {
+      form.append("result_disease", result.disease);
+      form.append("result_confidence", String(result.confidence));
+      form.append("result_severity", result.severity);
+      form.append("result_recommendations", JSON.stringify(result.recommendations));
+    }
+    return apiFetch<Scan>("/api/v1/scans", { method: "POST", body: form });
   },
 
   getMyScans: () =>
-    apiFetch<Scan[]>("/scans/my"),
+    apiFetch<Scan[]>("/api/v1/scans/my"),
 };

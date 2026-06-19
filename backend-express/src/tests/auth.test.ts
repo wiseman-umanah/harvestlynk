@@ -26,6 +26,8 @@ const buyer = {
   firstName: "Jane",
   lastName: "Smith",
   email: "jane@buy.com",
+  phoneNumber: "+2348087654321",
+  location: "Abuja",
   password: "Password1",
   confirmPassword: "Password1",
   role: "buyer",

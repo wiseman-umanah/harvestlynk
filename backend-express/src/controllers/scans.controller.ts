@@ -11,17 +11,32 @@ const createScanSchema = z.object({
   farmer_notes: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  result_disease: z.string().max(100).optional(),
+  result_confidence: z.number().min(0).max(1).optional(),
+  result_severity: z.enum(["low", "medium", "high"]).optional(),
+  result_recommendations: z.record(z.string(), z.string()).optional(),
 });
 
 export async function createScan(req: AuthRequest, res: Response) {
   const file = (req as AuthRequest & { file?: Express.Multer.File }).file;
   if (!file) { res.status(400).json({ error: "No image provided" }); return; }
 
+  let parsedRecommendations: Record<string, string> | undefined;
+  if (req.body?.result_recommendations) {
+    try {
+      parsedRecommendations = JSON.parse(String(req.body.result_recommendations)) as Record<string, string>;
+    } catch { /* ignore malformed JSON */ }
+  }
+
   const bodyData = {
     crop_type: req.body?.crop_type,
     farmer_notes: req.body?.farmer_notes,
     latitude: req.body?.latitude !== undefined ? Number(req.body.latitude) : undefined,
     longitude: req.body?.longitude !== undefined ? Number(req.body.longitude) : undefined,
+    result_disease: req.body?.result_disease ?? undefined,
+    result_confidence: req.body?.result_confidence !== undefined ? Number(req.body.result_confidence) : undefined,
+    result_severity: req.body?.result_severity ?? undefined,
+    result_recommendations: parsedRecommendations,
   };
 
   const parsed = createScanSchema.safeParse(bodyData);
@@ -32,6 +47,8 @@ export async function createScan(req: AuthRequest, res: Response) {
 
   const imageUrl = await uploadToCloudinary(file.buffer, "harvestlynk/scans");
 
+  const hasResult = parsed.data.result_disease !== undefined;
+
   const [scan] = await db.insert(scans).values({
     userId: req.user!.userId,
     imageUrl,
@@ -39,7 +56,12 @@ export async function createScan(req: AuthRequest, res: Response) {
     farmerNotes: parsed.data.farmer_notes,
     latitude: parsed.data.latitude !== undefined ? String(parsed.data.latitude) : undefined,
     longitude: parsed.data.longitude !== undefined ? String(parsed.data.longitude) : undefined,
-    status: "pending",
+    status: hasResult ? "completed" : "pending",
+    resultDisease: parsed.data.result_disease ?? null,
+    resultConfidence: parsed.data.result_confidence !== undefined ? String(parsed.data.result_confidence) : null,
+    resultSeverity: (parsed.data.result_severity as "low" | "medium" | "high" | null | undefined) ?? null,
+    resultRecommendations: parsed.data.result_recommendations ?? null,
+    completedAt: hasResult ? new Date() : null,
   }).returning();
 
   res.status(201).json(formatScan(scan!));

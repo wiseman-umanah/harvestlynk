@@ -53,6 +53,47 @@ export async function sendVerificationEmail(opts: {
   });
 }
 
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  name: string;
+  resetLink: string;
+}) {
+  const subject = "Reset your HarvestLynk password";
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a1a">Reset your password</h2>
+      <p>Hi ${opts.name},</p>
+      <p>We received a request to reset the password for your HarvestLynk account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+
+      <a href="${opts.resetLink}"
+         style="display:inline-block;margin:24px 0;padding:12px 28px;background:#2f855a;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">
+        Reset my password
+      </a>
+
+      <p style="color:#555">If you didn't request a password reset, you can safely ignore this email. Your password will not change.</p>
+
+      <p style="color:#888;font-size:12px;margin-top:32px">
+        For security, this link can only be used once and expires in 1 hour.
+      </p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log("\n📧 [EMAIL — no SMTP configured, printing to console]");
+    console.log(`  To:      ${opts.to}`);
+    console.log(`  Subject: ${subject}`);
+    console.log(`  Reset:   ${opts.resetLink}\n`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: `"HarvestLynk" <${process.env["SMTP_FROM"]}>`,
+    to: opts.to,
+    subject,
+    html,
+  });
+}
+
 export async function sendNewLoginAlert(opts: {
   to: string;
   name: string;

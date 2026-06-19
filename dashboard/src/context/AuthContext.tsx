@@ -7,14 +7,24 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { authApi, usersApi, walletApi, User, WalletBalance, SignupData } from "@/lib/api";
+import {
+  authApi,
+  usersApi,
+  walletApi,
+  setTokens,
+  clearTokens,
+  getStoredRefreshToken,
+  type User,
+  type WalletBalance,
+  type SignupData,
+} from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
   wallet: WalletBalance | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  signup: (data: SignupData) => Promise<User>;
+  signup: (data: SignupData) => Promise<{ message: string }>;
   logout: () => Promise<void>;
   refreshWallet: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -23,7 +33,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const CACHE_KEY = "hl_user_cache";
-
 const DEV_BYPASS = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
 const DEV_USER: User = {
@@ -59,83 +68,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<WalletBalance | null>(DEV_BYPASS ? DEV_USER.wallet : null);
   const [loading, setLoading] = useState(!DEV_BYPASS);
 
-  // Hydrate from cache immediately for fast initial render
+  // On mount: hydrate from cache immediately for fast paint, then silently
+  // restore the session from the stored refresh token.
   useEffect(() => {
     if (DEV_BYPASS) return;
+
+    // Fast paint from cached user
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       try {
-        const parsed: User = JSON.parse(cached);
+        const parsed = JSON.parse(cached) as User;
         setUser(parsed);
         if (parsed.wallet) setWallet(parsed.wallet);
       } catch {
         localStorage.removeItem(CACHE_KEY);
       }
     }
-  }, []);
 
-  // Then verify session with server and refresh data
-  const loadFromSession = useCallback(async () => {
-    if (DEV_BYPASS) return;
-    try {
-      const session = await authApi.getSession();
-      if (session?.user?.id) {
-        const fullUser = await usersApi.getUser(session.user.id);
+    // Silently refresh tokens to verify the session is still valid
+    async function restoreSession() {
+      const rt = getStoredRefreshToken();
+      if (!rt) { setLoading(false); return; }
+
+      try {
+        // Use raw fetch so we don't go through apiFetch (which might retry
+        // endlessly if no token is set yet)
+        const res = await fetch("/api/v1/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: rt }),
+        });
+
+        if (!res.ok) {
+          clearTokens();
+          setUser(null);
+          setWallet(null);
+          setLoading(false);
+          return;
+        }
+
+        const { accessToken, refreshToken } = await res.json() as {
+          accessToken: string;
+          refreshToken: string;
+        };
+        setTokens(accessToken, refreshToken);
+
+        // Load fresh user profile now that we have a valid access token
+        const fullUser = await usersApi.getMe();
         setUser(fullUser);
         localStorage.setItem(CACHE_KEY, JSON.stringify(fullUser));
         if (fullUser.wallet) setWallet(fullUser.wallet);
-      } else {
+      } catch {
+        clearTokens();
         setUser(null);
         setWallet(null);
-        localStorage.removeItem(CACHE_KEY);
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // Network error or session expired — clear cache
-      setUser(null);
-      setWallet(null);
-      localStorage.removeItem(CACHE_KEY);
-    } finally {
-      setLoading(false);
     }
-  }, []);
 
-  useEffect(() => {
-    loadFromSession();
-  }, [loadFromSession]);
+    restoreSession();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
-    const { user: sessionUser } = await authApi.signIn(email, password);
-    const fullUser = await usersApi.getUser(sessionUser.id);
+    const { accessToken, refreshToken, user: authUser } = await authApi.login(email, password);
+    setTokens(accessToken, refreshToken);
+
+    // Fetch full profile (includes wallet, trust_score, etc.)
+    const fullUser = await usersApi.getUser(authUser.id);
     setUser(fullUser);
     localStorage.setItem(CACHE_KEY, JSON.stringify(fullUser));
     if (fullUser.wallet) setWallet(fullUser.wallet);
     return fullUser;
   }, []);
 
-  const signup = useCallback(async (data: SignupData): Promise<User> => {
-    await usersApi.signup(data);
-    const fullUser = await usersApi.getMe();
-    setUser(fullUser);
-    localStorage.setItem(CACHE_KEY, JSON.stringify(fullUser));
-    if (fullUser.wallet) setWallet(fullUser.wallet);
-    return fullUser;
+  const signup = useCallback(async (data: SignupData): Promise<{ message: string }> => {
+    return authApi.signup(data);
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.signOut().catch(() => {});
+    const rt = getStoredRefreshToken();
+    if (rt) {
+      await authApi.logout(rt).catch(() => {});
+    }
+    clearTokens();
     setUser(null);
     setWallet(null);
-    localStorage.removeItem(CACHE_KEY);
-    localStorage.removeItem("hl_farmer_verified");
   }, []);
 
   const refreshWallet = useCallback(async () => {
     try {
       const w = await walletApi.getBalance();
       setWallet(w);
-    } catch {
-      // silently fail — stale data is acceptable
-    }
+    } catch { /* stale data is acceptable */ }
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -145,15 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(updated);
       localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
       if (updated.wallet) setWallet(updated.wallet);
-    } catch {
-      // silently fail
-    }
+    } catch { /* silently fail */ }
   }, [user?.id]);
 
   return (
-    <AuthContext.Provider
-      value={{ user, wallet, loading, login, signup, logout, refreshWallet, refreshUser }}
-    >
+    <AuthContext.Provider value={{ user, wallet, loading, login, signup, logout, refreshWallet, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,11 +2,12 @@ import { randomBytes, createHash } from "crypto";
 import type { Request, Response } from "express";
 import { eq, and, gt } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { users, wallets, refreshTokens } from "../db/schema.js";
+import { users, wallets, refreshTokens, passwordResetTokens } from "../db/schema.js";
 import { hashPassword, comparePassword } from "../utils/password.js";
 import { signAccessToken, signRevokeToken, verifyRevokeToken, signEmailVerificationToken, verifyEmailVerificationToken } from "../utils/jwt.js";
 import { signupSchema, loginSchema } from "../validators/auth.validator.js";
-import { sendVerificationEmail, sendNewLoginAlert } from "../utils/email.js";
+import { sendVerificationEmail, sendNewLoginAlert, sendPasswordResetEmail } from "../utils/email.js";
+import type { AuthRequest } from "../middleware/auth.js";
 
 // Minimal shape returned in auth responses (login, signup, verify)
 export const authUser = (user: typeof users.$inferSelect) => ({
@@ -96,8 +97,8 @@ export async function signup(req: Request, res: Response) {
   }).onConflictDoNothing();
 
   const emailToken = await signEmailVerificationToken(newUser.id, newUser.email);
-  const appUrl = process.env["APP_URL"] ?? "http://localhost:4000";
-  const verifyLink = `${appUrl}/api/v1/auth/verify-email?token=${emailToken}`;
+  const frontendUrl = process.env["FRONTEND_URL"] ?? "http://localhost:3000";
+  const verifyLink = `${frontendUrl}/verify-email?token=${emailToken}`;
 
   sendVerificationEmail({
     to: newUser.email,
@@ -198,8 +199,8 @@ export async function resendVerification(req: Request, res: Response) {
   }
 
   const token = await signEmailVerificationToken(user.id, user.email);
-  const appUrl = process.env["APP_URL"] ?? "http://localhost:4000";
-  const verifyLink = `${appUrl}/api/v1/auth/verify-email?token=${token}`;
+  const frontendUrl = process.env["FRONTEND_URL"] ?? "http://localhost:3000";
+  const verifyLink = `${frontendUrl}/verify-email?token=${token}`;
 
   sendVerificationEmail({
     to: user.email,
@@ -303,6 +304,106 @@ export async function getSessions(req: Request & { user?: { userId: string } }, 
     created_at: s.createdAt,
     expires_at: s.expiresAt,
   })));
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = req.body as { email?: string };
+  if (!email) { res.status(400).json({ error: "Email is required" }); return; }
+
+  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1);
+
+  // Always respond the same way to prevent email enumeration
+  if (!user || !user.emailVerified) {
+    res.json({ message: "If that email exists and is verified, a reset link has been sent." });
+    return;
+  }
+
+  // Invalidate any existing reset tokens for this user
+  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
+
+  const raw = randomBytes(40).toString("hex");
+  const hash = createHash("sha256").update(raw).digest("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await db.insert(passwordResetTokens).values({ userId: user.id, tokenHash: hash, expiresAt });
+
+  const frontendUrl = process.env["FRONTEND_URL"] ?? "http://localhost:3000";
+  const resetLink = `${frontendUrl}/reset-password?token=${raw}`;
+
+  sendPasswordResetEmail({
+    to: user.email,
+    name: `${user.firstName} ${user.lastName}`,
+    resetLink,
+  }).catch(() => {});
+
+  res.json({ message: "If that email exists and is verified, a reset link has been sent." });
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, password } = req.body as { token?: string; password?: string };
+  if (!token || !password) {
+    res.status(400).json({ error: "Token and password are required" });
+    return;
+  }
+  if (password.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+
+  const hash = createHash("sha256").update(token).digest("hex");
+  const now = new Date();
+
+  const [stored] = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(and(eq(passwordResetTokens.tokenHash, hash), gt(passwordResetTokens.expiresAt, now)))
+    .limit(1);
+
+  if (!stored || stored.usedAt) {
+    res.status(400).json({ error: "Invalid or expired reset link. Please request a new one." });
+    return;
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.id, stored.userId)).limit(1);
+  if (!user) { res.status(400).json({ error: "Invalid reset link" }); return; }
+
+  const passwordHash = await hashPassword(password);
+
+  await Promise.all([
+    db.update(users).set({ passwordHash }).where(eq(users.id, user.id)),
+    db.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, stored.id)),
+    db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id)),
+  ]);
+
+  res.json({ message: "Password updated. Please log in with your new password." });
+}
+
+export async function changePassword(req: AuthRequest, res: Response) {
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.id, req.user!.userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const valid = await comparePassword(currentPassword, user.passwordHash);
+  if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
+
+  if (currentPassword === newPassword) {
+    res.status(400).json({ error: "New password must be different from your current password" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+  res.json({ message: "Password changed successfully" });
 }
 
 // Revoke all sessions except the one making this request

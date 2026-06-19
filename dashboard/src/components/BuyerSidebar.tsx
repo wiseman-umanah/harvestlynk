@@ -2,13 +2,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 
 const navItems = [
-  { label: "Dashboard",      icon: "ri-layout-grid-line",  href: "/dashboard/buyer" },
-  { label: "Market Place",   icon: "ri-store-2-line",      href: "/dashboard/buyer/marketplace" },
-  { label: "Orders",         icon: "ri-list-ordered",      href: "/dashboard/buyer/orders" },
-  { label: "Wallet Balance", icon: "ri-wallet-3-line",     href: "/dashboard/buyer/wallet" },
-  { label: "Profile",        icon: "ri-user-line",         href: "/dashboard/buyer/profile" },
+  { label: "Dashboard",      icon: "ri-layout-grid-line",     href: "/dashboard/buyer" },
+  { label: "Market Place",   icon: "ri-store-2-line",         href: "/dashboard/buyer/marketplace" },
+  { label: "Cart",           icon: "ri-shopping-bag-3-line",  href: "/dashboard/buyer/checkout" },
+  { label: "Orders",         icon: "ri-list-ordered",         href: "/dashboard/buyer/orders" },
+  { label: "Wallet Balance", icon: "ri-wallet-3-line",        href: "/dashboard/buyer/wallet" },
+  { label: "Profile",        icon: "ri-user-line",            href: "/dashboard/buyer/profile" },
 ];
 
 interface Props {
@@ -20,6 +22,8 @@ export default function BuyerSidebar({ open, onClose }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
+  const { items } = useCart();
+  const cartCount = items.length;
 
   async function handleLogout() {
     onClose();
@@ -47,6 +51,7 @@ export default function BuyerSidebar({ open, onClose }: Props) {
       <nav className="pt-2 md:pt-4 px-3 flex-1 overflow-y-auto">
         {navItems.map((item) => {
           const active = pathname === item.href;
+          const badge = item.label === "Cart" && cartCount > 0 ? cartCount : 0;
           return (
             <Link
               key={item.href}
@@ -60,6 +65,11 @@ export default function BuyerSidebar({ open, onClose }: Props) {
             >
               <i className={`${item.icon} text-lg`} />
               {item.label}
+              {badge > 0 && (
+                <span className={`ml-auto w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${active ? "bg-white text-[#0D631B]" : "bg-[#0D631B] text-white"}`}>
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
             </Link>
           );
         })}

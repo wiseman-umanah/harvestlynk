@@ -522,6 +522,24 @@ export const refreshTokens = pgTable(
   ]
 );
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("password_reset_tokens_user_id_idx").on(t.userId),
+    index("password_reset_tokens_token_hash_idx").on(t.tokenHash),
+  ]
+);
+
 // ==================== TYPES ====================
 
 export type User = typeof users.$inferSelect;

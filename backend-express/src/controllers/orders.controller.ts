@@ -205,6 +205,39 @@ export async function cancelOrder(req: AuthRequest, res: Response) {
   res.json({ order_id: updated!.orderId, status: updated!.status });
 }
 
+export async function simulatePayment(req: AuthRequest, res: Response) {
+  const id = String(req.params["id"]);
+
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(and(eq(orders.orderId, id), eq(orders.buyerId, req.user!.userId)))
+    .limit(1);
+
+  if (!order) { res.status(404).json({ error: "Order not found" }); return; }
+  if (order.status !== "pending_payment") {
+    res.status(400).json({ error: "Order is not awaiting payment" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(orders)
+    .set({ status: "payment_confirmed" })
+    .where(eq(orders.orderId, id))
+    .returning();
+
+  await createNotification({
+    userId: order.farmerId,
+    type: "payment",
+    title: "Payment Received",
+    message: `Payment for order #${order.orderRef} has been confirmed`,
+    referenceId: order.orderId,
+    referenceType: "order",
+  });
+
+  res.json({ order_id: updated!.orderId, status: updated!.status, escrow_state: escrowState(updated!.status) });
+}
+
 export async function confirmDelivery(req: AuthRequest, res: Response) {
   const id = String(req.params["id"]);
 

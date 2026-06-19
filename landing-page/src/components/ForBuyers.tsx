@@ -3,6 +3,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { fadeLeft, fadeRight, staggerContainer, fadeUp } from "@/lib/motion";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+
 const benefits = [
   { icon: "ri-map-pin-2-line", text: "Transparent tracking from farm to warehouse, so you know exactly where your supply is at all times." },
   { icon: "ri-checkbox-circle-line", text: "AI-verified produce quality ensures you receive exactly what you paid for, reducing waste and disputes." },
@@ -62,7 +64,7 @@ export default function ForBuyers() {
               </ul>
               <motion.a
                 variants={fadeUp}
-                href="#"
+                href={`${APP_URL}/signup/buyer`}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
                 className="inline-flex items-center justify-center w-fit px-6 py-3 rounded-full bg-[#1e5631] text-white font-medium hover:bg-[#174a28] transition-colors"
