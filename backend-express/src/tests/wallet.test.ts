@@ -2,40 +2,49 @@ import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { db } from "../db/index.js";
-import { wallets, transactions } from "../db/schema.js";
+import { users, wallets, transactions } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { signEmailVerificationToken } from "../utils/jwt.js";
+
+const BASE_AUTH = "/api/v1/auth";
+const BASE_WALLET = "/api/v1/wallet";
 
 beforeEach(async () => {
   await db.delete(transactions);
   await db.delete(wallets);
 });
 
-const agent = () => request.agent(app);
-
-async function loginAgent(role: "farmer" | "buyer" = "farmer") {
-  const ag = agent();
-  await ag.post("/api/auth/signup").send({
+async function createVerifiedUser(role: "farmer" | "buyer" = "farmer") {
+  const email = "wallet@test.com";
+  await request(app).post(`${BASE_AUTH}/signup`).send({
     firstName: "Wallet",
     lastName: "Tester",
-    email: `wallet-${Date.now()}@test.com`,
+    email,
     password: "Password1",
     confirmPassword: "Password1",
     role,
-    acceptTerms: true,
   });
-  return ag;
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const token = await signEmailVerificationToken(user!.id, user!.email);
+  const res = await request(app).get(`${BASE_AUTH}/verify-email?token=${token}`);
+  return { accessToken: res.body.accessToken as string, userId: user!.id };
 }
 
-// ==================== GET /wallet/balance ====================
+function auth(token: string) {
+  return { Authorization: `Bearer ${token}` };
+}
 
-describe("GET /wallet/balance", () => {
+// ==================== GET /api/v1/wallet/balance ====================
+
+describe("GET /api/v1/wallet/balance", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).get("/wallet/balance");
+    const res = await request(app).get(`${BASE_WALLET}/balance`);
     expect(res.status).toBe(401);
   });
 
   it("auto-creates wallet and returns zero balances", async () => {
-    const ag = await loginAgent();
-    const res = await ag.get("/wallet/balance");
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken));
     expect(res.status).toBe(200);
     expect(res.body.available_balance).toBe("0");
     expect(res.body.pending_balance).toBe("0");
@@ -44,44 +53,41 @@ describe("GET /wallet/balance", () => {
   });
 
   it("returns existing wallet balance", async () => {
-    const ag = await loginAgent();
-    // Create wallet with balance via signup → getBalance auto-create, then manually update
-    await ag.get("/wallet/balance"); // trigger auto-create
-    // Directly update in DB
+    const { accessToken } = await createVerifiedUser();
+    await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken)); // trigger auto-create
     await db.update(wallets).set({ availableBalance: 100000 });
-    const res = await ag.get("/wallet/balance");
+    const res = await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken));
     expect(res.body.available_balance).toBe("100000");
   });
 });
 
-// ==================== GET /wallet/transactions ====================
+// ==================== GET /api/v1/wallet/transactions ====================
 
-describe("GET /wallet/transactions", () => {
+describe("GET /api/v1/wallet/transactions", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).get("/wallet/transactions");
+    const res = await request(app).get(`${BASE_WALLET}/transactions`);
     expect(res.status).toBe(401);
   });
 
   it("returns empty array when no transactions", async () => {
-    const ag = await loginAgent();
-    const res = await ag.get("/wallet/transactions");
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app).get(`${BASE_WALLET}/transactions`).set(auth(accessToken));
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 
   it("returns transactions with correct shape", async () => {
-    const ag = await loginAgent();
-    // Trigger wallet creation then withdraw to create a transaction
-    await ag.get("/wallet/balance");
+    const { accessToken } = await createVerifiedUser();
+    await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken)); // auto-create wallet
     await db.update(wallets).set({ availableBalance: 50000 });
-    await ag.post("/wallet/withdraw").send({
+    await request(app).post(`${BASE_WALLET}/withdraw`).set(auth(accessToken)).send({
       amount: 10000,
       bank_name: "GTBank",
       bank_code: "058",
       account_number: "0123456789",
     });
 
-    const res = await ag.get("/wallet/transactions");
+    const res = await request(app).get(`${BASE_WALLET}/transactions`).set(auth(accessToken));
     expect(res.status).toBe(200);
     expect(res.body.length).toBe(1);
     expect(res.body[0].type).toBe("debit");
@@ -91,43 +97,45 @@ describe("GET /wallet/transactions", () => {
   });
 });
 
-// ==================== GET /wallet/verify-bank ====================
+// ==================== GET /api/v1/wallet/verify-bank ====================
 
-describe("GET /wallet/verify-bank", () => {
+describe("GET /api/v1/wallet/verify-bank", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).get("/wallet/verify-bank?bank_code=058&account_number=0123456789");
+    const res = await request(app).get(`${BASE_WALLET}/verify-bank?bank_code=058&account_number=0123456789`);
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when params missing", async () => {
-    const ag = await loginAgent();
-    const res = await ag.get("/wallet/verify-bank");
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app).get(`${BASE_WALLET}/verify-bank`).set(auth(accessToken));
     expect(res.status).toBe(400);
   });
 
   it("returns stub verify response", async () => {
-    const ag = await loginAgent();
-    const res = await ag.get("/wallet/verify-bank?bank_code=058&account_number=0123456789");
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app)
+      .get(`${BASE_WALLET}/verify-bank?bank_code=058&account_number=0123456789`)
+      .set(auth(accessToken));
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.account_name).toBeDefined();
   });
 });
 
-// ==================== POST /wallet/withdraw ====================
+// ==================== POST /api/v1/wallet/withdraw ====================
 
-describe("POST /wallet/withdraw", () => {
+describe("POST /api/v1/wallet/withdraw", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).post("/wallet/withdraw").send({
+    const res = await request(app).post(`${BASE_WALLET}/withdraw`).send({
       amount: 1000, bank_name: "GTB", bank_code: "058", account_number: "0123456789",
     });
     expect(res.status).toBe(401);
   });
 
   it("returns 400 if balance insufficient", async () => {
-    const ag = await loginAgent();
-    await ag.get("/wallet/balance"); // create wallet (balance = 0)
-    const res = await ag.post("/wallet/withdraw").send({
+    const { accessToken } = await createVerifiedUser();
+    await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken)); // create wallet (balance = 0)
+    const res = await request(app).post(`${BASE_WALLET}/withdraw`).set(auth(accessToken)).send({
       amount: 5000, bank_name: "GTBank", bank_code: "058", account_number: "0123456789",
     });
     expect(res.status).toBe(400);
@@ -135,11 +143,11 @@ describe("POST /wallet/withdraw", () => {
   });
 
   it("deducts balance and returns transaction_id", async () => {
-    const ag = await loginAgent();
-    await ag.get("/wallet/balance");
+    const { accessToken } = await createVerifiedUser();
+    await request(app).get(`${BASE_WALLET}/balance`).set(auth(accessToken));
     await db.update(wallets).set({ availableBalance: 50000 });
 
-    const res = await ag.post("/wallet/withdraw").send({
+    const res = await request(app).post(`${BASE_WALLET}/withdraw`).set(auth(accessToken)).send({
       amount: 20000, bank_name: "GTBank", bank_code: "058", account_number: "0123456789",
     });
     expect(res.status).toBe(200);
@@ -152,16 +160,16 @@ describe("POST /wallet/withdraw", () => {
   });
 
   it("rejects amount = 0", async () => {
-    const ag = await loginAgent();
-    const res = await ag.post("/wallet/withdraw").send({
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app).post(`${BASE_WALLET}/withdraw`).set(auth(accessToken)).send({
       amount: 0, bank_name: "GTBank", bank_code: "058", account_number: "0123456789",
     });
     expect(res.status).toBe(400);
   });
 
   it("rejects missing bank_code", async () => {
-    const ag = await loginAgent();
-    const res = await ag.post("/wallet/withdraw").send({
+    const { accessToken } = await createVerifiedUser();
+    const res = await request(app).post(`${BASE_WALLET}/withdraw`).set(auth(accessToken)).send({
       amount: 1000, bank_name: "GTBank", account_number: "0123456789",
     });
     expect(res.status).toBe(400);

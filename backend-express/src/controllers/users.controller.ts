@@ -218,6 +218,42 @@ export async function getStats(req: AuthRequest, res: Response) {
   }
 }
 
+export async function getVerificationStatus(req: AuthRequest, res: Response) {
+  const [user] = await db
+    .select({
+      role: users.role,
+      emailVerified: users.emailVerified,
+      livenessVerified: users.livenessVerified,
+      ninDocumentUrl: users.ninDocumentUrl,
+      ownershipDocumentUrl: users.ownershipDocumentUrl,
+    })
+    .from(users)
+    .where(eq(users.id, req.user!.userId))
+    .limit(1);
+
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const ninUploaded = !!user.ninDocumentUrl;
+  const ownershipDocUploaded = !!user.ownershipDocumentUrl;
+
+  const isFullyVerified = user.role === "farmer"
+    ? user.emailVerified && user.livenessVerified && ninUploaded && ownershipDocUploaded
+    : user.emailVerified && user.livenessVerified && ninUploaded;
+
+  const status: Record<string, unknown> = {
+    email_verified: user.emailVerified,
+    liveness_verified: user.livenessVerified,
+    nin_uploaded: ninUploaded,
+    is_fully_verified: isFullyVerified,
+  };
+
+  if (user.role === "farmer") {
+    status["ownership_doc_uploaded"] = ownershipDocUploaded;
+  }
+
+  res.json(status);
+}
+
 export async function completeOAuthProfile(req: AuthRequest, res: Response) {
   const schema = z.object({
     role: z.enum(["farmer", "buyer"]),

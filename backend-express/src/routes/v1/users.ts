@@ -10,6 +10,7 @@ import {
   uploadOwnershipDocument,
   completeOAuthProfile,
   livenessCheck,
+  getVerificationStatus,
 } from "../../controllers/users.controller.js";
 import { authenticate } from "../../middleware/auth.js";
 import { getFarmerRatings } from "../../controllers/ratings.controller.js";
@@ -19,6 +20,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 router.get("/me", authenticate, getMe);
 router.get("/me/stats", authenticate, getStats);
+router.get("/me/verification-status", authenticate, getVerificationStatus);
 router.patch("/", authenticate, updateUser);
 router.post("/complete-oauth", authenticate, completeOAuthProfile);
 router.post("/avatar", authenticate, upload.single("file"), uploadAvatar);

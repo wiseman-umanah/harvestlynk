@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 
-// ==================== GET /wallet/banks ====================
+const BASE_WALLET = "/api/v1/wallet";
 
-describe("GET /wallet/banks", () => {
+// ==================== GET /api/v1/wallet/banks ====================
+
+describe("GET /api/v1/wallet/banks", () => {
   it("returns list of banks without auth (public endpoint)", async () => {
-    const res = await request(app).get("/wallet/banks");
+    const res = await request(app).get(`${BASE_WALLET}/banks`);
     expect(res.status).toBe(200);
     expect(res.body.banks).toBeDefined();
     expect(Array.isArray(res.body.banks)).toBe(true);
@@ -14,7 +16,7 @@ describe("GET /wallet/banks", () => {
   });
 
   it("each bank has name and code", async () => {
-    const res = await request(app).get("/wallet/banks");
+    const res = await request(app).get(`${BASE_WALLET}/banks`);
     const banks: { name: string; code: string }[] = res.body.banks;
     banks.forEach((b) => {
       expect(b.name).toBeDefined();
@@ -23,7 +25,7 @@ describe("GET /wallet/banks", () => {
   });
 
   it("includes GTBank (code 058)", async () => {
-    const res = await request(app).get("/wallet/banks");
+    const res = await request(app).get(`${BASE_WALLET}/banks`);
     const banks: { name: string; code: string }[] = res.body.banks;
     const gtb = banks.find((b) => b.code === "058");
     expect(gtb).toBeDefined();

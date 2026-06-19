@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { db } from "../db/index.js";
-import { listings, orders, wallets } from "../db/schema.js";
+import { users, listings, orders, wallets } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { signEmailVerificationToken } from "../utils/jwt.js";
+
+const BASE_AUTH = "/api/v1/auth";
+const BASE_MARKET = "/api/v1/marketplace";
+const BASE_ORDERS = "/api/v1/orders";
 
 beforeEach(async () => {
   await db.delete(orders);
@@ -10,19 +16,30 @@ beforeEach(async () => {
   await db.delete(wallets);
 });
 
-const makeAgent = async (role: "farmer" | "buyer", suffix: string) => {
-  const ag = request.agent(app);
-  await ag.post("/api/auth/signup").send({
+async function createVerifiedUser(role: "farmer" | "buyer", email: string) {
+  await request(app).post(`${BASE_AUTH}/signup`).send({
     firstName: role,
     lastName: "User",
-    email: `${role}${suffix}@orders.com`,
+    email,
     password: "Password1",
     confirmPassword: "Password1",
     role,
-    acceptTerms: true,
   });
-  return ag;
-};
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const token = await signEmailVerificationToken(user!.id, user!.email);
+  const res = await request(app).get(`${BASE_AUTH}/verify-email?token=${token}`);
+  return { accessToken: res.body.accessToken as string, userId: user!.id };
+}
+
+async function createFarmer(email: string) {
+  const { accessToken, userId } = await createVerifiedUser("farmer", email);
+  await db.update(users).set({ livenessVerified: true }).where(eq(users.id, userId));
+  return { accessToken, userId };
+}
+
+function auth(token: string) {
+  return { Authorization: `Bearer ${token}` };
+}
 
 const listingBody = {
   product_name: "Garri",
@@ -33,17 +50,20 @@ const listingBody = {
   location_state: "Oyo",
 };
 
-async function setupFarmerAndListing(suffix: string) {
-  const farmer = await makeAgent("farmer", suffix);
-  const listRes = await farmer.post("/marketplace/listings").send(listingBody);
-  return { farmer, listingId: listRes.body.listing_id as string };
+async function setupFarmerAndListing(farmerEmail = "farmer@orders.com") {
+  const { accessToken: farmerToken, userId: farmerId } = await createFarmer(farmerEmail);
+  const listRes = await request(app)
+    .post(`${BASE_MARKET}/listings`)
+    .set(auth(farmerToken))
+    .send(listingBody);
+  return { farmerToken, farmerId, listingId: listRes.body.listing_id as string };
 }
 
-// ==================== POST /orders ====================
+// ==================== POST /api/v1/orders ====================
 
-describe("POST /orders", () => {
+describe("POST /api/v1/orders", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).post("/orders").send({
+    const res = await request(app).post(`${BASE_ORDERS}`).send({
       listing_id: "00000000-0000-0000-0000-000000000000",
       quantity: 10,
       delivery_method: "pickup",
@@ -52,10 +72,10 @@ describe("POST /orders", () => {
   });
 
   it("buyer creates an order successfully", async () => {
-    const { listingId } = await setupFarmerAndListing("o1");
-    const buyer = await makeAgent("buyer", "o1");
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
 
-    const res = await buyer.post("/orders").send({
+    const res = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({
       listing_id: listingId,
       quantity: 10,
       delivery_method: "pickup",
@@ -71,8 +91,8 @@ describe("POST /orders", () => {
   });
 
   it("returns 404 for non-existent listing", async () => {
-    const buyer = await makeAgent("buyer", "o2");
-    const res = await buyer.post("/orders").send({
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    const res = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({
       listing_id: "00000000-0000-0000-0000-000000000000",
       quantity: 5,
       delivery_method: "pickup",
@@ -81,8 +101,8 @@ describe("POST /orders", () => {
   });
 
   it("returns 400 when farmer tries to buy own listing", async () => {
-    const { farmer, listingId } = await setupFarmerAndListing("o3");
-    const res = await farmer.post("/orders").send({
+    const { farmerToken, listingId } = await setupFarmerAndListing();
+    const res = await request(app).post(`${BASE_ORDERS}`).set(auth(farmerToken)).send({
       listing_id: listingId,
       quantity: 5,
       delivery_method: "pickup",
@@ -92,9 +112,9 @@ describe("POST /orders", () => {
   });
 
   it("rejects invalid delivery_method", async () => {
-    const { listingId } = await setupFarmerAndListing("o4");
-    const buyer = await makeAgent("buyer", "o4");
-    const res = await buyer.post("/orders").send({
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    const res = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({
       listing_id: listingId,
       quantity: 5,
       delivery_method: "drone",
@@ -103,9 +123,9 @@ describe("POST /orders", () => {
   });
 
   it("rejects quantity <= 0", async () => {
-    const { listingId } = await setupFarmerAndListing("o5");
-    const buyer = await makeAgent("buyer", "o5");
-    const res = await buyer.post("/orders").send({
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    const res = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({
       listing_id: listingId,
       quantity: 0,
       delivery_method: "pickup",
@@ -114,20 +134,20 @@ describe("POST /orders", () => {
   });
 });
 
-// ==================== GET /orders/buyer ====================
+// ==================== GET /api/v1/orders/buyer ====================
 
-describe("GET /orders/buyer", () => {
+describe("GET /api/v1/orders/buyer", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).get("/orders/buyer");
+    const res = await request(app).get(`${BASE_ORDERS}/buyer`);
     expect(res.status).toBe(401);
   });
 
   it("returns buyer's orders", async () => {
-    const { listingId } = await setupFarmerAndListing("b1");
-    const buyer = await makeAgent("buyer", "b1");
-    await buyer.post("/orders").send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
 
-    const res = await buyer.get("/orders/buyer");
+    const res = await request(app).get(`${BASE_ORDERS}/buyer`).set(auth(buyerToken));
     expect(res.status).toBe(200);
     expect(res.body.length).toBe(1);
     expect(res.body[0].order_ref).toMatch(/^#[A-Z]{2}-\d{4}$/);
@@ -135,27 +155,32 @@ describe("GET /orders/buyer", () => {
   });
 
   it("returns empty for buyer with no orders", async () => {
-    const buyer = await makeAgent("buyer", "b2");
-    const res = await buyer.get("/orders/buyer");
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    const res = await request(app).get(`${BASE_ORDERS}/buyer`).set(auth(buyerToken));
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
 });
 
-// ==================== GET /orders/my ====================
+// ==================== GET /api/v1/orders/my ====================
 
-describe("GET /orders/my", () => {
+describe("GET /api/v1/orders/my", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).get("/orders/my");
+    const res = await request(app).get(`${BASE_ORDERS}/my`);
     expect(res.status).toBe(401);
   });
 
   it("returns farmer's received orders", async () => {
-    const { farmer, listingId } = await setupFarmerAndListing("m1");
-    const buyer = await makeAgent("buyer", "m1");
-    await buyer.post("/orders").send({ listing_id: listingId, quantity: 20, delivery_method: "delivery", delivery_address: "123 Farm Rd" });
+    const { farmerToken, listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
+    await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({
+      listing_id: listingId,
+      quantity: 20,
+      delivery_method: "delivery",
+      delivery_address: "123 Farm Rd",
+    });
 
-    const res = await farmer.get("/orders/my");
+    const res = await request(app).get(`${BASE_ORDERS}/my`).set(auth(farmerToken));
     expect(res.status).toBe(200);
     expect(res.body.length).toBe(1);
     expect(res.body[0].order_ref).toMatch(/^#[A-Z]{2}-\d{4}$/);
@@ -164,58 +189,51 @@ describe("GET /orders/my", () => {
   });
 });
 
-// ==================== PATCH /orders/:id/confirm-delivery ====================
+// ==================== PATCH /api/v1/orders/:id/confirm-delivery ====================
 
-describe("PATCH /orders/:id/confirm-delivery", () => {
+describe("PATCH /api/v1/orders/:id/confirm-delivery", () => {
   it("returns 401 without auth", async () => {
-    const res = await request(app).patch("/orders/some-id/confirm-delivery");
+    const res = await request(app).patch(`${BASE_ORDERS}/some-id/confirm-delivery`);
     expect(res.status).toBe(401);
   });
 
   it("buyer confirms delivery — status becomes completed", async () => {
-    const { listingId } = await setupFarmerAndListing("c1");
-    const buyer = await makeAgent("buyer", "c1");
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
 
-    const order = await buyer.post("/orders").send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
+    const order = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
     const orderId = order.body.order_id as string;
 
-    // Force status to processing so confirm works
-    await db.update(orders).set({ status: "processing" }).where(
-      (await import("drizzle-orm")).eq(orders.orderId, orderId)
-    );
+    await db.update(orders).set({ status: "processing" }).where(eq(orders.orderId, orderId));
 
-    const res = await buyer.patch(`/orders/${orderId}/confirm-delivery`);
+    const res = await request(app).patch(`${BASE_ORDERS}/${orderId}/confirm-delivery`).set(auth(buyerToken));
     expect(res.status).toBe(200);
     expect(res.body.order.status).toBe("completed");
   });
 
   it("returns 404 when orderId does not belong to buyer", async () => {
-    const { listingId } = await setupFarmerAndListing("c2");
-    const buyer1 = await makeAgent("buyer", "c2a");
-    const buyer2 = await makeAgent("buyer", "c2b");
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken1 } = await createVerifiedUser("buyer", "buyer1@orders.com");
+    const { accessToken: buyerToken2 } = await createVerifiedUser("buyer", "buyer2@orders.com");
 
-    const order = await buyer1.post("/orders").send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
+    const order = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken1)).send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
     const orderId = order.body.order_id as string;
-    await db.update(orders).set({ status: "processing" }).where(
-      (await import("drizzle-orm")).eq(orders.orderId, orderId)
-    );
+    await db.update(orders).set({ status: "processing" }).where(eq(orders.orderId, orderId));
 
-    const res = await buyer2.patch(`/orders/${orderId}/confirm-delivery`);
+    const res = await request(app).patch(`${BASE_ORDERS}/${orderId}/confirm-delivery`).set(auth(buyerToken2));
     expect(res.status).toBe(404);
   });
 
   it("returns 400 when order already completed", async () => {
-    const { listingId } = await setupFarmerAndListing("c3");
-    const buyer = await makeAgent("buyer", "c3");
+    const { listingId } = await setupFarmerAndListing();
+    const { accessToken: buyerToken } = await createVerifiedUser("buyer", "buyer@orders.com");
 
-    const order = await buyer.post("/orders").send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
+    const order = await request(app).post(`${BASE_ORDERS}`).set(auth(buyerToken)).send({ listing_id: listingId, quantity: 5, delivery_method: "pickup" });
     const orderId = order.body.order_id as string;
 
-    await db.update(orders).set({ status: "completed" }).where(
-      (await import("drizzle-orm")).eq(orders.orderId, orderId)
-    );
+    await db.update(orders).set({ status: "completed" }).where(eq(orders.orderId, orderId));
 
-    const res = await buyer.patch(`/orders/${orderId}/confirm-delivery`);
+    const res = await request(app).patch(`${BASE_ORDERS}/${orderId}/confirm-delivery`).set(auth(buyerToken));
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already completed/i);
   });

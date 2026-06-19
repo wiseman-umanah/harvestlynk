@@ -155,6 +155,17 @@ export async function updateListing(req: AuthRequest, res: Response) {
 }
 
 export async function createListing(req: AuthRequest, res: Response) {
+  const [farmer] = await db
+    .select({ livenessVerified: users.livenessVerified })
+    .from(users)
+    .where(eq(users.id, req.user!.userId))
+    .limit(1);
+
+  if (!farmer?.livenessVerified) {
+    res.status(403).json({ error: "You must complete liveness verification before creating listings" });
+    return;
+  }
+
   const parsed = createListingSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", details: parsed.error.flatten().fieldErrors });
