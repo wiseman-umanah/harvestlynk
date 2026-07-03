@@ -2,9 +2,10 @@ import type { Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { orders, listings, users } from "../db/schema.js";
+import { orders, listings, users, wallets, transactions } from "../db/schema.js";
 import { generateOrderRef } from "../utils/orderRef.js";
 import { createNotification } from "../utils/notifications.js";
+import { createCheckoutLink } from "../utils/nomba.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
 const createOrderSchema = z.object({
@@ -66,6 +67,34 @@ export async function createOrder(req: AuthRequest, res: Response) {
     specialInstructions: special_instructions ?? null,
   }).returning();
 
+  // Generate Nomba checkout link
+  let checkoutLink: string | null = null;
+  let nombaOrderReference: string | null = null;
+  try {
+    const result = await createCheckoutLink({
+      amountKobo: totalAmount * 100, // Convert Naira to Kobo
+      customerEmail: req.user!.email,
+      orderReference: order!.orderRef,
+      callbackUrl: `${process.env["FRONTEND_URL"] ?? "http://localhost:3000"}/dashboard/buyer/orders/${order!.orderId}`,
+      customerId: req.user!.userId,
+      allowedPaymentMethods: ["Card", "Transfer"],
+      orderMetaData: {
+        productName: listing.productName,
+        quantity: String(quantity),
+      },
+      tokenizeCard: false,
+      currency: "NGN",
+    });
+    checkoutLink = result.checkoutLink;
+    nombaOrderReference = result.orderReference;
+
+    // Update order with checkout link
+    await db.update(orders).set({ checkoutLink, nombaOrderReference }).where(eq(orders.orderId, order!.orderId));
+  } catch (error) {
+    console.error("[Nomba Checkout Error]", error);
+    // If checkout link generation fails, order still exists but checkout will be retried
+  }
+
   // Notify farmer
   await createNotification({
     userId: listing.farmerId,
@@ -78,7 +107,7 @@ export async function createOrder(req: AuthRequest, res: Response) {
 
   const [farmerUser] = await db.select({ firstName: users.firstName, lastName: users.lastName, farmName: users.farmName }).from(users).where(eq(users.id, listing.farmerId)).limit(1);
 
-  res.status(201).json(formatBuyerOrder(order!, listing, farmerUser!));
+  res.status(201).json({ ...formatBuyerOrder(order!, listing, farmerUser!), checkout_link: checkoutLink });
 }
 
 export async function getMyBuyerOrders(req: AuthRequest, res: Response) {
@@ -254,9 +283,32 @@ export async function confirmDelivery(req: AuthRequest, res: Response) {
     return;
   }
 
+  const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, order.farmerId)).limit(1);
+
+  let orderUpdate = { status: "completed" as const, completedAt: new Date() };
+  if (wallet) {
+    const newPending = wallet.pendingBalance - order.totalAmount;
+    const newAvailable = wallet.availableBalance + order.totalAmount;
+
+    await db.update(wallets)
+      .set({ pendingBalance: newPending, availableBalance: newAvailable, updatedAt: new Date() })
+      .where(eq(wallets.walletId, wallet.walletId));
+
+    await db.insert(transactions).values({
+      walletId: wallet.walletId,
+      userId: order.farmerId,
+      type: "credit",
+      amount: order.totalAmount,
+      balanceBefore: wallet.availableBalance,
+      balanceAfter: newAvailable,
+      description: `Release escrow for order ${order.orderRef}`,
+      status: "completed",
+    });
+  }
+
   const [updated] = await db
     .update(orders)
-    .set({ status: "completed", completedAt: new Date() })
+    .set(orderUpdate)
     .where(eq(orders.orderId, id))
     .returning();
 
@@ -292,6 +344,7 @@ function formatBuyerOrder(
     completed_at: order.completedAt,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
+    checkout_link: order.checkoutLink,
     listing: { product_name: listing.productName, unit: listing.unit },
     farmer: { name: `${farmer.firstName} ${farmer.lastName}`, farmName: farmer.farmName },
   };

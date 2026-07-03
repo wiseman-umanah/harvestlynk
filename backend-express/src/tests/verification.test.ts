@@ -31,8 +31,9 @@ const buyer = {
 };
 
 async function createVerifiedUser(data: typeof farmer | typeof buyer) {
-  await request(app).post(`${BASE_AUTH}/signup`).send(data);
-  const [user] = await db.select().from(users).where(eq(users.email, data.email)).limit(1);
+  const uniqueData = { ...data, email: `${data.email}-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+  await request(app).post(`${BASE_AUTH}/signup`).send(uniqueData);
+  const [user] = await db.select().from(users).where(eq(users.email, uniqueData.email.toLowerCase())).limit(1);
   const token = await signEmailVerificationToken(user!.id, user!.email);
   const res = await request(app).get(`${BASE_AUTH}/verify-email?token=${token}`);
   return {

@@ -50,7 +50,12 @@ export default function BuyerOrders() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  async function handleSimulatePayment(orderId: string) {
+  async function handlePayNow(orderId: string, checkoutLink?: string | null) {
+    if (checkoutLink) {
+      window.open(checkoutLink, "_blank");
+      return;
+    }
+
     setPayingId(orderId);
     try {
       await ordersApi.simulatePayment(orderId);
@@ -229,7 +234,7 @@ export default function BuyerOrders() {
                         <motion.button
                           whileHover={{ scale: 1.04 }}
                           whileTap={{ scale: 0.97 }}
-                          onClick={() => handleSimulatePayment(o.order_id)}
+                          onClick={() => handlePayNow(o.order_id, o.checkout_link)}
                           disabled={payingId === o.order_id}
                           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-60"
                         >

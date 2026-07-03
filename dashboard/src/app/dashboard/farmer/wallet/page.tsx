@@ -5,7 +5,7 @@ import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
 import { useAuth } from "@/context/AuthContext";
 import { walletApi, formatNaira, nairaToKobo, Transaction } from "@/lib/api";
 
-const BANKS = [
+const DEFAULT_BANKS = [
   { code: "058", name: "Guaranty Trust Bank (GTB)" },
   { code: "044", name: "Access Bank" },
   { code: "011", name: "First Bank of Nigeria" },
@@ -24,6 +24,9 @@ export default function Wallet() {
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [banks, setBanks] = useState(DEFAULT_BANKS);
+  const [bankLoading, setBankLoading] = useState(true);
+  const [bankError, setBankError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
@@ -38,6 +41,14 @@ export default function Wallet() {
       .then(setTransactions)
       .catch(() => {})
       .finally(() => setTxLoading(false));
+
+    walletApi.getBanks()
+      .then((res) => setBanks(res.banks))
+      .catch((error) => {
+        console.warn("Failed to load bank list", error);
+        setBankError("Unable to load bank list. Using default options.");
+      })
+      .finally(() => setBankLoading(false));
   }, [refreshWallet]);
 
   const availableKobo = wallet ? parseInt(wallet.available_balance, 10) : 0;
@@ -77,7 +88,7 @@ export default function Wallet() {
       setWithdrawError("Please verify your bank account first.");
       return;
     }
-    const bankName = BANKS.find((b) => b.code === bankCode)?.name ?? bankCode;
+    const bankName = banks.find((b) => b.code === bankCode)?.name ?? bankCode;
     setWithdrawing(true);
     setWithdrawError("");
     setWithdrawSuccess("");
@@ -87,6 +98,7 @@ export default function Wallet() {
         bank_name: bankName,
         bank_code: bankCode,
         account_number: accountNumber,
+        account_name: accountName,
       });
       if (res.success) {
         setWithdrawSuccess(`Withdrawal of ${formatNaira(nairaToKobo(naira))} initiated. Ref: ${res.transaction_id}`);
@@ -152,10 +164,11 @@ export default function Wallet() {
             <select
               value={bankCode}
               onChange={(e) => { setBankCode(e.target.value); setAccountName(""); setVerifyError(""); }}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B] mb-4 bg-white"
+              disabled={bankLoading}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B] mb-4 bg-white disabled:cursor-not-allowed disabled:bg-gray-50"
             >
-              <option value="">Select a bank...</option>
-              {BANKS.map((b) => (
+              <option value="">{bankLoading ? "Loading banks..." : "Select a bank..."}</option>
+              {banks.map((b) => (
                 <option key={b.code} value={b.code}>{b.name}</option>
               ))}
             </select>
@@ -177,12 +190,13 @@ export default function Wallet() {
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={handleVerifyBank}
-                disabled={verifying || accountNumber.length !== 10 || !bankCode}
+                disabled={bankLoading || verifying || accountNumber.length !== 10 || !bankCode}
                 className="px-4 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
-                {verifying ? <i className="ri-loader-4-line animate-spin" /> : "Verify"}
+                {bankLoading || verifying ? <i className="ri-loader-4-line animate-spin" /> : "Verify"}
               </motion.button>
             </div>
+            {bankError && <p className="text-amber-600 text-xs mb-2">{bankError}</p>}
             {verifyError && <p className="text-red-500 text-xs mb-2">{verifyError}</p>}
             {accountName && (
               <p className="text-green-700 text-xs font-semibold mb-3 flex items-center gap-1">

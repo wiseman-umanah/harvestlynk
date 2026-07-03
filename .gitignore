@@ -4,3 +4,5 @@ PROJECT_CONTEXT.md
 .env
 .claude
 dist 
+payment_plan.md
+test-output.log

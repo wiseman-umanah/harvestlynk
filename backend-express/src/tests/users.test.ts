@@ -23,7 +23,16 @@ async function createVerifiedUser(role: "farmer" | "buyer" = "farmer", email = "
     confirmPassword: "Password1",
     role,
   });
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const uniqueEmail = `${email}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await request(app).post(`${BASE_AUTH}/signup`).send({
+    firstName: "Test",
+    lastName: "User",
+    email: uniqueEmail,
+    password: "Password1",
+    confirmPassword: "Password1",
+    role,
+  });
+  const [user] = await db.select().from(users).where(eq(users.email, uniqueEmail.toLowerCase())).limit(1);
   const token = await signEmailVerificationToken(user!.id, user!.email);
   const res = await request(app).get(`${BASE_AUTH}/verify-email?token=${token}`);
   return { accessToken: res.body.accessToken as string, userId: user!.id };

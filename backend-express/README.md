@@ -35,6 +35,12 @@ JWT_SECRET=your-secret-here
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
+NOMBA_CLIENT_ID=your-nomba-client-id
+NOMBA_CLIENT_SECRET=your-nomba-client-secret
+NOMBA_PARENT_ACCOUNT_ID=your-nomba-parent-account-id
+NOMBA_SUB_ACCOUNT_ID=your-nomba-sub-account-id
+NOMBA_ENV=sandbox
+NOMBA_WEBHOOK_SECRET=your-nomba-webhook-secret
 PORT=4000
 CORS_ORIGINS=http://localhost:3000
 ```
@@ -80,6 +86,12 @@ Tests run against a real PostgreSQL database (no mocks). Set `DATABASE_URL` to a
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary account cloud name |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Yes | Cloudinary API secret |
+| `NOMBA_CLIENT_ID` | Yes | Nomba client ID used for access token requests |
+| `NOMBA_CLIENT_SECRET` | Yes | Nomba client secret used for access token requests |
+| `NOMBA_PARENT_ACCOUNT_ID` | Yes | Nomba parent account ID used in `accountId` headers |
+| `NOMBA_SUB_ACCOUNT_ID` | No | Optional Nomba sub-account ID used for scoped checkout/transfer payloads |
+| `NOMBA_ENV` | No | Nomba environment (`sandbox` or `production`, default: `sandbox`) |
+| `NOMBA_WEBHOOK_SECRET` | No | Secret used to verify Nomba webhook HMAC signatures |
 | `PORT` | No | HTTP port (default: `4000`) |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default: `http://localhost:3000`) |
 | `NODE_ENV` | No | Set to `production` in prod; disables morgan logging |

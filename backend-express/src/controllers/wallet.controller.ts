@@ -1,8 +1,10 @@
 import type { Response } from "express";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { db } from "../db/index.js";
-import { wallets, transactions } from "../db/schema.js";
+import { getNigerianBanks, lookupAccount, initiateTransfer } from "../utils/nomba.js";
+import { payouts, wallets, transactions } from "../db/schema.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
 const NIGERIAN_BANKS = [
@@ -33,8 +35,13 @@ const NIGERIAN_BANKS = [
   { name: "Zenith Bank", code: "057" },
 ];
 
-export function getBanks(_req: AuthRequest, res: Response) {
-  res.json({ banks: NIGERIAN_BANKS });
+export async function getBanks(_req: AuthRequest, res: Response) {
+  try {
+    const banks = await getNigerianBanks();
+    res.json({ banks });
+  } catch (error) {
+    res.json({ banks: NIGERIAN_BANKS });
+  }
 }
 
 export async function getBalance(req: AuthRequest, res: Response) {
@@ -108,12 +115,30 @@ export async function verifyBank(req: AuthRequest, res: Response) {
     return;
   }
 
-  // Stub — replace with real Paystack/Squad bank verify API call
-  res.json({
-    success: true,
-    message: "Bank account verified",
-    data: { account_name: "ACCOUNT HOLDER NAME" },
-  });
+  try {
+    const data = await lookupAccount(account_number, bank_code);
+    const accountName = String(
+      (data as any)?.accountName ??
+      (data as any)?.account_name ??
+      (data as any)?.account?.name ??
+      ""
+    );
+
+    res.json({
+      success: true,
+      message: "Bank account verified",
+      data: {
+        account_name: accountName,
+        details: data,
+      },
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Unable to verify bank account",
+      data: { account_name: "", details: null },
+    });
+  }
 }
 
 const withdrawSchema = z.object({
@@ -121,6 +146,7 @@ const withdrawSchema = z.object({
   bank_name: z.string().min(1),
   bank_code: z.string().min(1),
   account_number: z.string().min(10),
+  account_name: z.string().min(1).optional(),
 });
 
 export async function withdraw(req: AuthRequest, res: Response) {
@@ -130,7 +156,8 @@ export async function withdraw(req: AuthRequest, res: Response) {
     return;
   }
 
-  const { amount } = parsed.data;
+  const { amount, bank_name, bank_code, account_number } = parsed.data;
+  const accountName = String(req.body.account_name ?? req.body.accountName ?? account_number);
 
   const [wallet] = await db
     .select()
@@ -138,17 +165,34 @@ export async function withdraw(req: AuthRequest, res: Response) {
     .where(eq(wallets.userId, req.user!.userId))
     .limit(1);
 
-  if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
+  if (!wallet) {
+    res.status(404).json({ error: "Wallet not found" });
+    return;
+  }
   if (wallet.availableBalance < amount) {
     res.status(400).json({ error: "Insufficient balance" });
     return;
   }
 
   const newBalance = wallet.availableBalance - amount;
+  const commissionRate = 0.0;
+  const commissionAmount = Math.round(amount * commissionRate);
+  const netAmount = amount - commissionAmount;
+  const transferRef = `withdrawal_${randomUUID()}`;
 
   await db.update(wallets)
     .set({ availableBalance: newBalance, updatedAt: new Date() })
     .where(eq(wallets.walletId, wallet.walletId));
+
+  const [payout] = await db.insert(payouts).values({
+    farmerId: req.user!.userId,
+    grossAmount: amount,
+    commissionAmount,
+    netAmount,
+    commissionRate: commissionRate.toString(),
+    nombaReference: transferRef,
+    status: "pending",
+  }).returning();
 
   const [tx] = await db.insert(transactions).values({
     walletId: wallet.walletId,
@@ -157,14 +201,57 @@ export async function withdraw(req: AuthRequest, res: Response) {
     amount,
     balanceBefore: wallet.availableBalance,
     balanceAfter: newBalance,
-    description: `Withdrawal to ${parsed.data.bank_name}`,
+    referenceId: payout!.payoutId,
+    referenceType: "payout",
+    description: `Withdrawal to ${bank_name}`,
     status: "pending",
   }).returning();
 
-  res.json({
-    success: true,
-    message: "Withdrawal initiated",
-    transaction_id: tx!.transactionId,
-    status: "pending",
-  });
+  try {
+    const transferResult = await initiateTransfer({
+      amountKobo: amount,
+      accountNumber: account_number,
+      accountName,
+      bankCode: bank_code,
+      transferRef,
+      senderName: "HarvestLynk Payout",
+      narration: `Withdrawal ${transferRef}`,
+    });
+
+    await db.update(payouts)
+      .set({ status: "processing", processedAt: new Date(), updatedAt: new Date() })
+      .where(eq(payouts.payoutId, payout!.payoutId));
+
+    res.json({
+      success: true,
+      message: "Withdrawal initiated",
+      transaction_id: tx!.transactionId,
+      payout_id: payout!.payoutId,
+      status: "pending",
+      transfer: transferResult,
+    });
+  } catch (error) {
+    await db.update(wallets)
+      .set({ availableBalance: wallet.availableBalance, updatedAt: new Date() })
+      .where(eq(wallets.walletId, wallet.walletId));
+
+    await db.update(transactions)
+      .set({ status: "failed" })
+      .where(eq(transactions.transactionId, tx!.transactionId));
+
+    await db.update(payouts)
+      .set({
+        status: "failed",
+        failureReason: error instanceof Error ? error.message : String(error),
+        settledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(payouts.payoutId, payout!.payoutId));
+
+    res.status(502).json({
+      success: false,
+      error: "Unable to initiate payout transfer",
+      details: error instanceof Error ? error.message : error,
+    });
+  }
 }

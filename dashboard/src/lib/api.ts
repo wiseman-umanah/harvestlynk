@@ -183,6 +183,7 @@ export interface WithdrawData {
   bank_name: string;
   bank_code: string;
   account_number: string;
+  account_name?: string;
 }
 
 export interface BankVerifyResponse {
@@ -552,6 +553,7 @@ export interface BuyerOrder {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  checkout_link?: string | null;
   listing: { product_name: string; unit: string };
   farmer: { name: string; farmName: string | null };
 }

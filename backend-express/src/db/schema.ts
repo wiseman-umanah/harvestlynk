@@ -354,7 +354,7 @@ export const payments = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     amount: bigint("amount", { mode: "number" }).notNull(),
-    squadReference: varchar("squad_reference", { length: 100 }).unique(),
+    nombaReference: varchar("nomba_reference", { length: 100 }).unique(),
     status: paymentStatusEnum("status").default("pending").notNull(),
     paymentMethod: varchar("payment_method", { length: 50 }),
     authorizationUrl: text("authorization_url"),
@@ -371,7 +371,7 @@ export const payments = pgTable(
     index("payments_order_id_idx").on(t.orderId),
     index("payments_buyer_id_idx").on(t.buyerId),
     index("payments_farmer_id_idx").on(t.farmerId),
-    index("payments_squad_reference_idx").on(t.squadReference),
+    index("payments_nomba_reference_idx").on(t.nombaReference),
     index("payments_status_idx").on(t.status),
   ]
 );
@@ -383,12 +383,12 @@ export const payouts = pgTable(
     farmerId: text("farmer_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    orderId: uuid("order_id").notNull(),
+    orderId: uuid("order_id"),
     grossAmount: integer("gross_amount").notNull(),
     commissionAmount: integer("commission_amount").notNull(),
     netAmount: integer("net_amount").notNull(),
     commissionRate: decimal("commission_rate", { precision: 5, scale: 4 }).notNull(),
-    squadReference: varchar("squad_reference", { length: 100 }).unique(),
+    nombaReference: varchar("nomba_reference", { length: 100 }).unique(),
     status: payoutStatusEnum("status").default("pending").notNull(),
     failureReason: text("failure_reason"),
     processedAt: timestamp("processed_at"),
@@ -402,6 +402,7 @@ export const payouts = pgTable(
   (t) => [
     index("payouts_farmer_id_idx").on(t.farmerId),
     index("payouts_order_id_idx").on(t.orderId),
+    index("payouts_nomba_reference_idx").on(t.nombaReference),
     index("payouts_status_idx").on(t.status),
   ]
 );
@@ -457,6 +458,8 @@ export const orders = pgTable(
     deliveryAddress: text("delivery_address"),
     specialInstructions: text("special_instructions"),
     status: orderStatusEnum("status").default("pending_payment").notNull(),
+    checkoutLink: text("checkout_link"),
+    nombaOrderReference: varchar("nomba_order_reference", { length: 100 }),
     proofImageUrl: text("proof_image_url"),
     cancelledBy: text("cancelled_by").references(() => users.id),
     cancellationReason: text("cancellation_reason"),
@@ -473,6 +476,7 @@ export const orders = pgTable(
     index("orders_buyer_id_idx").on(t.buyerId),
     index("orders_status_idx").on(t.status),
     index("orders_created_at_idx").on(t.createdAt),
+    index("orders_nomba_order_reference_idx").on(t.nombaOrderReference),
   ]
 );
 

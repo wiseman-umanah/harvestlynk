@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import app from "../app.js";
 import { db } from "../db/index.js";
 import { users, wallets, transactions } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { signEmailVerificationToken } from "../utils/jwt.js";
+import * as nombaUtils from "../utils/nomba.js";
+import * as supabaseUtils from "../utils/supabase.js";
 
 const BASE_AUTH = "/api/v1/auth";
 const BASE_WALLET = "/api/v1/wallet";
@@ -12,11 +14,33 @@ const BASE_WALLET = "/api/v1/wallet";
 beforeEach(async () => {
   await db.delete(transactions);
   await db.delete(wallets);
+  await db.delete(users);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 async function createVerifiedUser(role: "farmer" | "buyer" = "farmer") {
-  const email = "wallet@test.com";
-  await request(app).post(`${BASE_AUTH}/signup`).send({
+  const email = `wallet-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  const supabaseUserId = `supabase-${Date.now()}-${Math.random()}`;
+  
+  // Mock Supabase signup to avoid rate limits
+  const mockSupabase = {
+    auth: {
+      signUp: vi.fn().mockResolvedValue({
+        data: { user: { id: supabaseUserId, email } },
+        error: null,
+      }),
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: supabaseUserId, email, email_confirmed_at: new Date() } },
+        error: null,
+      }),
+    },
+  };
+  vi.spyOn(supabaseUtils, "getSupabaseAdmin").mockReturnValue(mockSupabase as any);
+  
+  const signupRes = await request(app).post(`${BASE_AUTH}/signup`).send({
     firstName: "Wallet",
     lastName: "Tester",
     email,
@@ -24,10 +48,18 @@ async function createVerifiedUser(role: "farmer" | "buyer" = "farmer") {
     confirmPassword: "Password1",
     role,
   });
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  const token = await signEmailVerificationToken(user!.id, user!.email);
+  if (signupRes.status !== 201) {
+    console.error("[Test] Signup failed:", signupRes.status, signupRes.body);
+  }
+  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+  if (!user) {
+    console.error("[Test] User not found after signup with email:", email.toLowerCase());
+    throw new Error(`Failed to create user with email ${email}`);
+  }
+  const token = await signEmailVerificationToken(user.id, user.email);
+  vi.spyOn(supabaseUtils, "getSupabaseAdmin").mockReturnValue(mockSupabase as any);
   const res = await request(app).get(`${BASE_AUTH}/verify-email?token=${token}`);
-  return { accessToken: res.body.accessToken as string, userId: user!.id };
+  return { accessToken: res.body.accessToken as string, userId: user.id };
 }
 
 function auth(token: string) {
@@ -111,20 +143,36 @@ describe("GET /api/v1/wallet/verify-bank", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns stub verify response", async () => {
+  it("returns verified bank response", async () => {
+    const lookupSpy = vi.spyOn(nombaUtils, "lookupAccount").mockResolvedValue({
+      accountName: "Test Recipient",
+      account_number: "0123456789",
+      bank_code: "058",
+    });
+
     const { accessToken } = await createVerifiedUser();
     const res = await request(app)
       .get(`${BASE_WALLET}/verify-bank?bank_code=058&account_number=0123456789`)
       .set(auth(accessToken));
+
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.account_name).toBeDefined();
+    expect(res.body.data.account_name).toBe("Test Recipient");
+    expect(lookupSpy).toHaveBeenCalledWith("0123456789", "058");
   });
 });
 
 // ==================== POST /api/v1/wallet/withdraw ====================
 
 describe("POST /api/v1/wallet/withdraw", () => {
+  beforeEach(() => {
+    vi.spyOn(nombaUtils, "initiateTransfer").mockResolvedValue({
+      success: true,
+      merchantTxRef: "transfer_test_ref",
+      status: "processing",
+    });
+  });
+
   it("returns 401 without auth", async () => {
     const res = await request(app).post(`${BASE_WALLET}/withdraw`).send({
       amount: 1000, bank_name: "GTB", bank_code: "058", account_number: "0123456789",

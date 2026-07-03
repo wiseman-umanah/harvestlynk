@@ -49,20 +49,42 @@ export default function CartPage() {
     }
 
     setPlacing(true);
+    const paymentWindow = typeof window !== "undefined" ? window.open("", "_blank") : null;
     try {
+      let firstCheckoutLink: string | null = null;
+
       for (const item of items) {
         const farmerId = item.farmer_id;
         const method = getMethod(farmerId);
-        await ordersApi.createOrder({
+        const createdOrder = await ordersApi.createOrder({
           listing_id: item.listing_id,
           quantity: item.quantity,
           delivery_method: method,
           delivery_address: method === "delivery" ? deliveryAddress[farmerId] ?? null : null,
         });
+        if (!firstCheckoutLink && createdOrder.checkout_link) {
+          firstCheckoutLink = createdOrder.checkout_link;
+        }
       }
+
       clearCart();
+      if (firstCheckoutLink) {
+        if (paymentWindow) {
+          paymentWindow.location.href = firstCheckoutLink;
+        } else {
+          window.open(firstCheckoutLink, "_blank");
+        }
+      } else {
+        if (paymentWindow) {
+          paymentWindow.close();
+        }
+        setError("Orders were created, but the payment link could not be generated. Please visit your orders page to retry payment.");
+      }
       router.push("/dashboard/buyer/orders");
     } catch (err) {
+      if (paymentWindow) {
+        paymentWindow.close();
+      }
       setError(err instanceof Error ? err.message : "Failed to place orders. Please try again.");
     } finally {
       setPlacing(false);
