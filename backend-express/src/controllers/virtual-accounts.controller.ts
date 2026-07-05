@@ -35,7 +35,10 @@ export async function createBuyerVirtualAccount(req: AuthRequest, res: Response)
   }
 
   const accountRef = `VA-${userId}-${Date.now()}`;
-  const accountName = `${user.firstName} ${user.lastName} - HarvestLynk`;
+  // Nomba rejects accountName containing special characters (hyphens, dashes, etc.)
+  // Use only letters and spaces — strip anything else from the user's name.
+  const rawName = `${user.firstName} ${user.lastName}`.replace(/[^a-zA-Z\s]/g, "").trim();
+  const accountName = rawName || "HarvestLynk User";
 
   try {
     const nombaResponse = await createVirtualAccount({
