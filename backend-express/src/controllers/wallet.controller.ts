@@ -3,7 +3,7 @@ import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { db } from "../db/index.js";
-import { getNigerianBanks, lookupAccount, initiateTransfer } from "../utils/nomba.js";
+import { getNigerianBanks, lookupAccount, initiateTransfer, verifyTransaction } from "../utils/nomba.js";
 import { payouts, wallets, transactions, walletLedgerEntries } from "../db/schema.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
@@ -181,7 +181,8 @@ const withdrawSchema = z.object({
   bank_name: z.string().min(1),
   bank_code: z.string().min(1),
   account_number: z.string().min(10),
-  account_name: z.string().min(1).optional(),
+  // account_name must now be provided (obtained from /verify-bank before calling withdraw).
+  account_name: z.string().min(1, "account_name is required — verify the bank account first"),
   idempotency_key: z.string().min(1).optional(),
 });
 
@@ -192,8 +193,7 @@ export async function withdraw(req: AuthRequest, res: Response) {
     return;
   }
 
-  const { amount, bank_name, bank_code, account_number, idempotency_key } = parsed.data;
-  const accountName = String(req.body.account_name ?? req.body.accountName ?? account_number);
+  const { amount, bank_name, bank_code, account_number, account_name: accountName, idempotency_key } = parsed.data;
   const idempotencyKey: WithdrawIdempotencyKey =
     String(req.header("idempotency-key") ?? idempotency_key ?? req.body.idempotencyKey ?? "").trim() || null;
   const commissionRate = 0.0;
@@ -261,7 +261,10 @@ export async function withdraw(req: AuthRequest, res: Response) {
       commissionAmount,
       netAmount,
       commissionRate: commissionRate.toString(),
+      // nombaReference holds our internal transferRef before Nomba confirms.
+      // merchantTxRef mirrors it so inbound payout webhooks can find this row by either field.
       nombaReference: transferRef,
+      merchantTxRef: transferRef,
       idempotencyKey,
       status: "pending",
     }).returning();
@@ -342,6 +345,7 @@ export async function withdraw(req: AuthRequest, res: Response) {
       transferRef: walletSnapshot.transferRef,
       senderName: "HarvestLynk Payout",
       narration: `Withdrawal ${walletSnapshot.transferRef}`,
+      idempotencyKey: idempotencyKey ?? walletSnapshot.transferRef,
     });
 
     await db.update(payouts)
@@ -412,4 +416,141 @@ export async function withdraw(req: AuthRequest, res: Response) {
       details: error instanceof Error ? error.message : error,
     });
   }
+}
+
+// ─── Payout Requery ──────────────────────────────────────────────────────────
+//
+// Used as a fallback when a payout webhook is delayed or missed.
+// Queries Nomba for the transfer status by the stored transferRef (nombaReference),
+// then settles the payout and wallet in the same way the webhook would.
+
+export async function requeryPayout(req: AuthRequest, res: Response) {
+  const payoutId = String(req.params["id"]);
+
+  const [payout] = await db
+    .select()
+    .from(payouts)
+    .where(and(eq(payouts.payoutId, payoutId), eq(payouts.farmerId, req.user!.userId)))
+    .limit(1);
+
+  if (!payout) {
+    res.status(404).json({ error: "Payout not found" });
+    return;
+  }
+
+  // Only requery transfers that are still in a non-terminal state.
+  if (payout.status === "success" || payout.status === "failed") {
+    res.json({ payout_id: payout.payoutId, status: payout.status, already_settled: true });
+    return;
+  }
+
+  // The transferRef stored in nombaReference is the merchantTxRef we sent to Nomba.
+  const transferRef = payout.nombaReference;
+  if (!transferRef) {
+    res.status(400).json({ error: "No transfer reference available for requery" });
+    return;
+  }
+
+  let nombaStatus: string | undefined;
+  try {
+    const result = await verifyTransaction(transferRef);
+    const data = (result as any)?.data ?? result;
+    nombaStatus = String(
+      data?.status ?? data?.transactionStatus ?? data?.transaction_status ?? "",
+    ).toUpperCase() || undefined;
+  } catch (error) {
+    console.error("[payout-requery] Nomba verify error:", error);
+    res.status(502).json({ error: "Unable to reach Nomba for requery", details: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+
+  if (!nombaStatus) {
+    res.json({ payout_id: payout.payoutId, status: payout.status, nomba_status: null, message: "No status returned from Nomba yet" });
+    return;
+  }
+
+  const isSuccess = ["SUCCESS", "SUCCESSFUL", "COMPLETED", "PAID"].includes(nombaStatus);
+  const isFailed = ["FAILED", "REVERSED", "CANCELLED"].includes(nombaStatus);
+
+  if (!isSuccess && !isFailed) {
+    res.json({ payout_id: payout.payoutId, status: payout.status, nomba_status: nombaStatus, message: "Transfer still in progress" });
+    return;
+  }
+
+  if (isSuccess) {
+    await db.update(payouts)
+      .set({ status: "success", processedAt: new Date(), settledAt: new Date(), updatedAt: new Date() })
+      .where(eq(payouts.payoutId, payout.payoutId));
+
+    const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, payout.farmerId)).limit(1);
+    if (wallet) {
+      await db.update(wallets)
+        .set({ totalPaidOut: wallet.totalPaidOut + payout.netAmount, updatedAt: new Date() })
+        .where(eq(wallets.walletId, wallet.walletId));
+
+      await db.update(walletLedgerEntries)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(eq(walletLedgerEntries.referenceId, payout.payoutId));
+
+      await db.update(transactions)
+        .set({ status: "completed" })
+        .where(eq(transactions.referenceId, payout.payoutId));
+    }
+
+    res.json({ payout_id: payout.payoutId, status: "success", nomba_status: nombaStatus, settled: true });
+    return;
+  }
+
+  // Failed / reversed — restore available balance
+  const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, payout.farmerId)).limit(1);
+
+  await db.transaction(async (tx) => {
+    await tx.update(payouts)
+      .set({ status: "failed", failureReason: `Requery: ${nombaStatus}`, settledAt: new Date(), updatedAt: new Date() })
+      .where(eq(payouts.payoutId, payout.payoutId));
+
+    await tx.update(transactions)
+      .set({ status: "failed" })
+      .where(eq(transactions.referenceId, payout.payoutId));
+
+    await tx.update(walletLedgerEntries)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(eq(walletLedgerEntries.referenceId, payout.payoutId));
+
+    if (wallet) {
+      const restoredAvailable = wallet.availableBalance + payout.netAmount;
+      await tx.update(wallets)
+        .set({ availableBalance: restoredAvailable, updatedAt: new Date() })
+        .where(eq(wallets.walletId, wallet.walletId));
+
+      await tx.insert(walletLedgerEntries).values({
+        walletId: wallet.walletId,
+        userId: payout.farmerId,
+        type: "credit",
+        amount: payout.netAmount,
+        balanceBefore: wallet.availableBalance,
+        balanceAfter: restoredAvailable,
+        referenceId: payout.payoutId,
+        referenceType: "payout_refund",
+        idempotencyKey: `requery_refund_${payout.payoutId}`,
+        description: `Refund for failed payout ${payout.payoutId} (requery)`,
+        status: "completed",
+      });
+
+      await tx.insert(transactions).values({
+        walletId: wallet.walletId,
+        userId: payout.farmerId,
+        type: "credit",
+        amount: payout.netAmount,
+        balanceBefore: wallet.availableBalance,
+        balanceAfter: restoredAvailable,
+        referenceId: payout.payoutId,
+        referenceType: "payout_refund",
+        description: `Refund for failed payout ${payout.payoutId} (requery)`,
+        status: "completed",
+      });
+    }
+  });
+
+  res.json({ payout_id: payout.payoutId, status: "failed", nomba_status: nombaStatus, settled: true });
 }

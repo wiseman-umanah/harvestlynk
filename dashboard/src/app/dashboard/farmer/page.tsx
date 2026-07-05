@@ -60,6 +60,7 @@ export default function FarmerDashboard() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const activeListings = listings.filter((l) => l.status === "active");
@@ -162,9 +163,14 @@ export default function FarmerDashboard() {
                     <div className="absolute top-3 right-3 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                       <i className="ri-checkbox-circle-fill text-xs" /> ACTIVE
                     </div>
-                    <div className={`w-full h-full bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
-                      <i className={`${style.icon} text-4xl`} />
-                    </div>
+                    {item.images?.length ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.images[0]} alt={item.product_name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className={`w-full h-full bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
+                        <i className={`${style.icon} text-4xl`} />
+                      </div>
+                    )}
                   </div>
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-2">

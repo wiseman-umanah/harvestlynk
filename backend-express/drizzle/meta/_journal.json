@@ -29,6 +29,41 @@
       "when": 1781882667735,
       "tag": "0003_wooden_mojo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781883667735,
+      "tag": "0004_nomba_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781884667735,
+      "tag": "0005_optional_payout_order_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781885667735,
+      "tag": "0006_virtual_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781886667735,
+      "tag": "0007_money_ledger_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781887667735,
+      "tag": "0008_order_state_machine",
+      "breakpoints": true
     }
   ]
 }

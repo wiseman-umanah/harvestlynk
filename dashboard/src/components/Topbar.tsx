@@ -20,6 +20,7 @@ export default function Topbar({ onMenuToggle }: Props) {
 
   useEffect(() => {
     if (!isBuyer) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
     }
   }, [isBuyer, pathname]);

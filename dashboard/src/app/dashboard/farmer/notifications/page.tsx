@@ -37,7 +37,7 @@ const cardVariants = {
   }),
 };
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export default function FarmerNotifications() {
   const router = useRouter();
@@ -46,6 +46,7 @@ export default function FarmerNotifications() {
   const { notifications, loading, markRead, markAllRead } = useNotifications();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
   }, []);
 
@@ -54,7 +55,8 @@ export default function FarmerNotifications() {
     return tabType === undefined || n.type === tabType;
   });
 
-  const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000; // 3 days ago
+  // eslint-disable-next-line react-hooks/purity
+  const cutoff = useMemo(() => Date.now() - 3 * 24 * 60 * 60 * 1000, []); // 3 days ago
   const recent = filtered.filter((n) => new Date(n.created_at).getTime() > cutoff);
   const earlier = filtered.filter((n) => new Date(n.created_at).getTime() <= cutoff);
 

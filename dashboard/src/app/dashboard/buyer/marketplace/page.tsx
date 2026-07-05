@@ -59,6 +59,7 @@ export default function BuyerMarketplace() {
     }
   }, [activeCategory, debouncedSearch]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchListings(); }, [fetchListings]);
 
   function handleAddToCart(listing: PublicListing) {

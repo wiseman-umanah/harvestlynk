@@ -53,10 +53,12 @@ function MyFarmInner() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchListings();
   }, [fetchListings]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (searchParams.get("list") === "true") setShowModal(true);
   }, [searchParams]);
 

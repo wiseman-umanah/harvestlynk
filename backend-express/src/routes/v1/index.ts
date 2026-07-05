@@ -7,6 +7,7 @@ import ordersRoutes from "./orders.js";
 import paymentsRoutes from "./payments.js";
 import notificationsRoutes from "./notifications.js";
 import scansRoutes from "./scans.js";
+import virtualAccountsRoutes from "./virtual-accounts.js";
 
 const v1: IRouter = Router();
 
@@ -18,5 +19,6 @@ v1.use("/orders", ordersRoutes);
 v1.use("/payments", paymentsRoutes);
 v1.use("/notifications", notificationsRoutes);
 v1.use("/scans", scansRoutes);
+v1.use("/virtual-accounts", virtualAccountsRoutes);
 
 export default v1;

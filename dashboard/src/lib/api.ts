@@ -75,6 +75,19 @@ export interface WalletBalance {
   updated_at?: string;
 }
 
+export interface VirtualAccount {
+  virtual_account_id: string;
+  account_ref: string;
+  account_name: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  bank_name: string;
+  currency: string;
+  status: "active" | "suspended" | "expired";
+  is_dynamic: boolean;
+  created_at: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -203,6 +216,13 @@ export interface WithdrawResponse {
   message: string;
   transaction_id: string;
   status: "pending" | "completed" | "failed";
+}
+
+export interface RequeryPayoutResponse {
+  success: boolean;
+  message: string;
+  payout_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
 }
 
 export interface NotificationItem {
@@ -475,6 +495,29 @@ export const walletApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  requeryPayout: (payoutId: string) =>
+    apiFetch<RequeryPayoutResponse>(`/api/v1/wallet/payout/${encodeURIComponent(payoutId)}/requery`),
+};
+
+// ─── Virtual Accounts API ─────────────────────────────────────────────────────
+
+export const virtualAccountsApi = {
+  createVirtualAccount: () =>
+    apiFetch<{ success: boolean; virtualAccount: VirtualAccount }>("/api/v1/virtual-accounts", {
+      method: "POST",
+    }),
+
+  getMyVirtualAccount: () =>
+    apiFetch<{ success: boolean; virtualAccount: VirtualAccount }>("/api/v1/virtual-accounts"),
+
+  suspendVirtualAccount: () =>
+    apiFetch<{ success: boolean; message: string }>("/api/v1/virtual-accounts/suspend", {
+      method: "PUT",
+    }),
+
+  getWalletBalance: () =>
+    apiFetch<{ success: boolean; wallet: WalletBalance }>("/api/v1/virtual-accounts/wallet/balance"),
 };
 
 export interface PublicListing extends Listing {
@@ -571,6 +614,7 @@ export interface CreateOrderData {
   delivery_method: "pickup" | "delivery";
   delivery_address?: string | null;
   special_instructions?: string | null;
+  payment_method?: "wallet" | "checkout";
 }
 
 export interface FarmerOrder {
@@ -625,6 +669,18 @@ export const ordersApi = {
   cancelOrder: (orderId: string, reason?: string) =>
     apiFetch<{ order_id: string; status: string }>(
       `/api/v1/orders/${orderId}/cancel`,
+      { method: "PATCH", body: JSON.stringify({ reason }) }
+    ),
+
+  requestRefund: (orderId: string, reason?: string) =>
+    apiFetch<{ order_id: string; status: string }>(
+      `/api/v1/orders/${orderId}/request-refund`,
+      { method: "PATCH", body: JSON.stringify({ reason }) }
+    ),
+
+  disputeOrder: (orderId: string, reason?: string) =>
+    apiFetch<{ order_id: string; status: string }>(
+      `/api/v1/orders/${orderId}/dispute`,
       { method: "PATCH", body: JSON.stringify({ reason }) }
     ),
 

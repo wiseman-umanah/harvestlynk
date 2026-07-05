@@ -68,12 +68,51 @@ CREATE INDEX "orders_status_idx" ON "public"."orders" ("status");
 CREATE INDEX "orders_created_at_idx" ON "public"."orders" ("created_at");
 CREATE INDEX "orders_nomba_order_reference_idx" ON "public"."orders" ("nomba_order_reference");
 
-INSERT INTO "public"."orders" SELECT * FROM "public"."orders_temp";
+INSERT INTO "public"."orders" (
+  "order_id",
+  "order_ref",
+  "listing_id",
+  "farmer_id",
+  "buyer_id",
+  "quantity",
+  "unit_price",
+  "total_amount",
+  "delivery_method",
+  "delivery_address",
+  "special_instructions",
+  "status",
+  "proof_image_url",
+  "cancelled_by",
+  "cancellation_reason",
+  "completed_at",
+  "created_at",
+  "updated_at"
+)
+SELECT
+  "order_id",
+  "order_ref",
+  "listing_id",
+  "farmer_id",
+  "buyer_id",
+  "quantity",
+  "unit_price",
+  "total_amount",
+  "delivery_method",
+  "delivery_address",
+  "special_instructions",
+  "status",
+  "proof_image_url",
+  "cancelled_by",
+  "cancellation_reason",
+  "completed_at",
+  "created_at",
+  "updated_at"
+FROM "public"."orders_temp";
 DROP TABLE "public"."orders_temp";
 
 -- Update payments table: remove squad_reference, add nomba_reference
 ALTER TABLE "public"."payments" DROP CONSTRAINT IF EXISTS "payments_pkey" CASCADE;
-ALTER TABLE "public"."payments" DROP INDEX IF EXISTS "payments_squad_reference_idx";
+DROP INDEX IF EXISTS "public"."payments_squad_reference_idx";
 
 CREATE TABLE IF NOT EXISTS "public"."payments_temp" AS
 SELECT
@@ -125,7 +164,36 @@ CREATE INDEX "payments_farmer_id_idx" ON "public"."payments" ("farmer_id");
 CREATE INDEX "payments_nomba_reference_idx" ON "public"."payments" ("nomba_reference");
 CREATE INDEX "payments_status_idx" ON "public"."payments" ("status");
 
-INSERT INTO "public"."payments" SELECT * FROM "public"."payments_temp";
+INSERT INTO "public"."payments" (
+  "payment_id",
+  "order_id",
+  "buyer_id",
+  "farmer_id",
+  "amount",
+  "status",
+  "payment_method",
+  "authorization_url",
+  "metadata",
+  "paid_at",
+  "webhook_received_at",
+  "created_at",
+  "updated_at"
+)
+SELECT
+  "payment_id",
+  "order_id",
+  "buyer_id",
+  "farmer_id",
+  "amount",
+  "status",
+  "payment_method",
+  "authorization_url",
+  "metadata",
+  "paid_at",
+  "webhook_received_at",
+  "created_at",
+  "updated_at"
+FROM "public"."payments_temp";
 DROP TABLE "public"."payments_temp";
 
 -- Update payouts table: remove squad_reference, add nomba_reference
@@ -176,5 +244,34 @@ CREATE INDEX "payouts_order_id_idx" ON "public"."payouts" ("order_id");
 CREATE INDEX "payouts_nomba_reference_idx" ON "public"."payouts" ("nomba_reference");
 CREATE INDEX "payouts_status_idx" ON "public"."payouts" ("status");
 
-INSERT INTO "public"."payouts" SELECT * FROM "public"."payouts_temp";
+INSERT INTO "public"."payouts" (
+  "payout_id",
+  "farmer_id",
+  "order_id",
+  "gross_amount",
+  "commission_amount",
+  "net_amount",
+  "commission_rate",
+  "status",
+  "failure_reason",
+  "processed_at",
+  "settled_at",
+  "created_at",
+  "updated_at"
+)
+SELECT
+  "payout_id",
+  "farmer_id",
+  "order_id",
+  "gross_amount",
+  "commission_amount",
+  "net_amount",
+  "commission_rate",
+  "status",
+  "failure_reason",
+  "processed_at",
+  "settled_at",
+  "created_at",
+  "updated_at"
+FROM "public"."payouts_temp";
 DROP TABLE "public"."payouts_temp";

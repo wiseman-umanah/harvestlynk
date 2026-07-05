@@ -39,7 +39,7 @@ const ORDER_STATUS: Record<BuyerOrder["status"], { label: string; badge: string 
 };
 
 export default function BuyerProfile() {
-  const { user, wallet } = useAuth();
+  const { user, wallet, refreshUser } = useAuth();
   const [orders, setOrders] = useState<BuyerOrder[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +51,44 @@ export default function BuyerProfile() {
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
   const [showPw, setShowPw] = useState(false);
+
+  // Edit profile state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editLga, setEditLga] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  function openEdit() {
+    setEditName(user?.name ?? "");
+    setEditState(user?.location_state ?? "");
+    setEditLga(user?.location_lga ?? "");
+    setEditError("");
+    setEditSuccess(false);
+    setEditOpen(true);
+  }
+
+  async function handleEditSave() {
+    if (!editName.trim()) { setEditError("Full name is required."); return; }
+    setEditError("");
+    setEditLoading(true);
+    try {
+      await usersApi.updateUser({
+        fullName: editName.trim(),
+        locationState: editState.trim() || undefined,
+        locationLga: editLga.trim() || undefined,
+      });
+      await refreshUser();
+      setEditSuccess(true);
+      setTimeout(() => { setEditOpen(false); setEditSuccess(false); }, 1400);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to update profile.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -68,6 +106,7 @@ export default function BuyerProfile() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const displayName   = user?.name ?? "Buyer";
@@ -299,8 +338,68 @@ export default function BuyerProfile() {
 
       {/* Account Details */}
       <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 p-5 md:p-6">
-        <h2 className="text-base font-bold text-gray-900 mb-4">Account Details</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-gray-900">Account Details</h2>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={openEdit}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <i className="ri-edit-line" /> Edit
+          </motion.button>
+        </div>
+  
+        {editOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-4 rounded-xl border border-[#0D631B]/20 bg-green-50/40"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-900">Edit Details</span>
+              <button onClick={() => setEditOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <i className="ri-close-line" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { label: "Full Name *", value: editName, set: setEditName, placeholder: "Your full name" },
+                { label: "State",       value: editState, set: setEditState, placeholder: "e.g. Lagos" },
+                { label: "LGA",         value: editLga,   set: setEditLga,   placeholder: "e.g. Ikeja" },
+              ].map(({ label, value, set, placeholder }) => (
+                <div key={label}>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
+                  <input
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:border-[#0D631B] transition-colors"
+                  />
+                </div>
+              ))}
+            </div>
+            {editError && <p className="text-red-500 text-xs mt-2 p-2 bg-red-50 rounded-xl">{editError}</p>}
+            {editSuccess && (
+              <p className="text-green-600 text-xs mt-2 p-2 bg-green-50 rounded-xl flex items-center gap-1">
+                <i className="ri-checkbox-circle-line" /> Profile updated!
+              </p>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleEditSave}
+              disabled={editLoading}
+              className="mt-3 px-5 py-2 rounded-xl bg-[#0D631B] text-white text-sm font-semibold hover:bg-[#0a4f15] transition-colors disabled:opacity-70 flex items-center gap-2"
+            >
+              {editLoading
+                ? <><i className="ri-loader-4-line animate-spin" /> Saving…</>
+                : "Save Changes"
+              }
+            </motion.button>
+          </motion.div>
+        )}
+  
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           {[
             { label: "Full Name",       value: displayName,                        icon: "ri-user-line" },
             { label: "Email",           value: email,                              icon: "ri-mail-line" },

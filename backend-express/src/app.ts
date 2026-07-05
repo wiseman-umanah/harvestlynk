@@ -9,13 +9,21 @@ import openapiSpec from "./docs/openapi.js";
 
 const isTest = process.env["NODE_ENV"] === "test";
 const app: Express = express();
+const nombaWebhookPath = "/api/v1/payments/nomba-webhook";
 
 if (!isTest) {
   app.use(morgan("dev"));
 }
 
 app.use(corsMiddleware);
-app.use(express.json());
+app.use(nombaWebhookPath, express.raw({ type: "*/*" }));
+app.use((req, res, next) => {
+  if (req.path === nombaWebhookPath) {
+    next();
+    return;
+  }
+  express.json()(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(generalLimiter);
 

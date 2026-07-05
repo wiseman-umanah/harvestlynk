@@ -33,6 +33,17 @@ export const orderStatusEnum = pgEnum("order_status", [
   "completed",
   "cancelled",
   "disputed",
+  // Buyer has requested cancellation after payment; farmer must accept or reject.
+  "cancellation_requested",
+  // Refund has been initiated and is pending provider processing.
+  "refund_pending",
+]);
+
+export const disputeResolutionEnum = pgEnum("dispute_resolution", [
+  "pending",           // dispute open, not yet resolved
+  "released_to_farmer", // full amount released to farmer
+  "refunded_to_buyer",  // full amount refunded to buyer
+  "partial_refund",     // partial split — amounts recorded in metadata
 ]);
 
 // ==================== USER ====================
@@ -330,7 +341,7 @@ export const wallets = pgTable(
     availableBalance: bigint("available_balance", { mode: "number" }).notNull(),
     pendingBalance: bigint("pending_balance", { mode: "number" }).notNull(),
     totalPaidIn: bigint("total_paid_in", { mode: "number" }).notNull(),
-    totalPaidOut: integer("total_paid_out").notNull(),
+    totalPaidOut: bigint("total_paid_out", { mode: "number" }).notNull(),
     currency: varchar("currency", { length: 3 }).default("NGN").notNull(),
     lastUpdated: timestamp("last_updated").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -384,11 +395,15 @@ export const payouts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     orderId: uuid("order_id"),
-    grossAmount: integer("gross_amount").notNull(),
-    commissionAmount: integer("commission_amount").notNull(),
-    netAmount: integer("net_amount").notNull(),
+    grossAmount: bigint("gross_amount", { mode: "number" }).notNull(),
+    commissionAmount: bigint("commission_amount", { mode: "number" }).notNull(),
+    netAmount: bigint("net_amount", { mode: "number" }).notNull(),
     commissionRate: decimal("commission_rate", { precision: 5, scale: 4 }).notNull(),
-    nombaReference: varchar("nomba_reference", { length: 100 }).unique(),
+    // nombaReference stores our internal transferRef (UUID) for pre-transfer correlation.
+    // After Nomba confirms, this may be updated to the Nomba transaction reference.
+    nombaReference: varchar("nomba_reference", { length: 120 }).unique(),
+    // merchantTxRef is the value Nomba sends back in payout webhooks — used to match inbound events.
+    merchantTxRef: varchar("merchant_tx_ref", { length: 120 }).unique(),
     idempotencyKey: varchar("idempotency_key", { length: 120 }),
     status: payoutStatusEnum("status").default("pending").notNull(),
     failureReason: text("failure_reason"),
@@ -404,6 +419,7 @@ export const payouts = pgTable(
     index("payouts_farmer_id_idx").on(t.farmerId),
     index("payouts_order_id_idx").on(t.orderId),
     index("payouts_nomba_reference_idx").on(t.nombaReference),
+    index("payouts_merchant_tx_ref_idx").on(t.merchantTxRef),
     uniqueIndex("payouts_idempotency_key_idx").on(t.idempotencyKey),
     index("payouts_status_idx").on(t.status),
   ]
@@ -472,6 +488,43 @@ export const walletLedgerEntries = pgTable(
   ]
 );
 
+export const virtualAccountStatusEnum = pgEnum("virtual_account_status", ["active", "suspended", "expired"]);
+
+export const virtualAccounts = pgTable(
+  "virtual_accounts",
+  {
+    virtualAccountId: uuid("virtual_account_id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountRef: varchar("account_ref", { length: 100 }).notNull().unique(),
+    accountName: varchar("account_name", { length: 100 }).notNull(),
+    bankAccountNumber: varchar("bank_account_number", { length: 20 }).notNull(),
+    bankAccountName: varchar("bank_account_name", { length: 150 }).notNull(),
+    bankName: varchar("bank_name", { length: 100 }).notNull(),
+    currency: varchar("currency", { length: 3 }).default("NGN").notNull(),
+    bvn: varchar("bvn", { length: 20 }),
+    expectedAmount: integer("expected_amount"),
+    expiryDate: timestamp("expiry_date"),
+    status: virtualAccountStatusEnum("status").default("active").notNull(),
+    isDynamic: boolean("is_dynamic").default(false).notNull(),
+    nombaAccountId: varchar("nomba_account_id", { length: 100 }),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdateFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("virtual_accounts_user_id_idx").on(t.userId),
+    index("virtual_accounts_account_ref_idx").on(t.accountRef),
+    index("virtual_accounts_bank_account_number_idx").on(t.bankAccountNumber),
+    index("virtual_accounts_status_idx").on(t.status),
+  ]
+);
+
 // ==================== ORDER MANAGEMENT ====================
 
 export const orders = pgTable(
@@ -500,6 +553,14 @@ export const orders = pgTable(
     proofImageUrl: text("proof_image_url"),
     cancelledBy: text("cancelled_by").references(() => users.id),
     cancellationReason: text("cancellation_reason"),
+    // Set when buyer requests cancellation after payment (farmer must respond).
+    cancellationRequestedAt: timestamp("cancellation_requested_at"),
+    // true = farmer accepted the cancellation request; false = farmer rejected it.
+    farmerCancellationAccepted: boolean("farmer_cancellation_accepted"),
+    // Dispute resolution outcome — set by admin when resolving a disputed order.
+    disputeResolution: disputeResolutionEnum("dispute_resolution"),
+    // Kobo amount refunded to buyer during partial dispute resolution.
+    disputeRefundAmount: integer("dispute_refund_amount"),
     completedAt: timestamp("completed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -590,3 +651,4 @@ export type Listing = typeof listings.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type VirtualAccount = typeof virtualAccounts.$inferSelect;

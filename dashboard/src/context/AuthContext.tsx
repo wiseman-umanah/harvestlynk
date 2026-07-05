@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (cached) {
       try {
         const parsed = JSON.parse(cached) as User;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setUser(parsed);
         if (parsed.wallet) setWallet(parsed.wallet);
       } catch {
@@ -146,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     restoreSession();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
     const { accessToken, refreshToken, user: authUser } = await authApi.login(email, password);
@@ -200,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
       if (updated.wallet) setWallet(updated.wallet);
     } catch { /* silently fail */ }
-  }, [user?.id]);
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, wallet, loading, login, loginWithGoogle, signup, logout, refreshWallet, refreshUser }}>

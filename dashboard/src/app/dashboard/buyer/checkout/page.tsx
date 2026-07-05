@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart, type CartItem } from "@/context/CartContext";
 import { ordersApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { formatNaira } from "@/lib/api";
 
 // Group cart items by farmer
 function groupByFarmer(items: CartItem[]) {
@@ -26,19 +28,25 @@ function groupByFarmer(items: CartItem[]) {
 export default function CartPage() {
   const router = useRouter();
   const { items, updateQty, removeItem, clearCart, totalPrice } = useCart();
+  const { wallet } = useAuth();
   const [deliveryMethod, setDeliveryMethod] = useState<Record<string, "pickup" | "delivery">>({});
   const [deliveryAddress, setDeliveryAddress] = useState<Record<string, string>>({});
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "checkout">("checkout");
   const [placing, setPlacing] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  // Retry: orders were created but checkout link was missing — store order IDs for retry
+  const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
 
   const groups = groupByFarmer(items);
+  const hasSufficientBalance = wallet && parseInt(wallet.available_balance, 10) >= totalPrice * 100;
 
   function getMethod(farmerId: string): "pickup" | "delivery" {
     return deliveryMethod[farmerId] ?? "pickup";
   }
 
   async function handlePlaceOrders() {
-    setError("");
+    setError(null);
+    setPendingOrderIds([]);
 
     // Validate delivery addresses
     for (const [farmerId] of groups) {
@@ -48,10 +56,17 @@ export default function CartPage() {
       }
     }
 
+    // Validate wallet balance if using wallet payment
+    if (paymentMethod === "wallet" && !hasSufficientBalance) {
+      setError("Insufficient wallet balance. Please fund your wallet or use card/bank transfer.");
+      return;
+    }
+
     setPlacing(true);
     const paymentWindow = typeof window !== "undefined" ? window.open("", "_blank") : null;
     try {
       let firstCheckoutLink: string | null = null;
+      const createdIds: string[] = [];
 
       for (const item of items) {
         const farmerId = item.farmer_id;
@@ -61,37 +76,47 @@ export default function CartPage() {
           quantity: item.quantity,
           delivery_method: method,
           delivery_address: method === "delivery" ? deliveryAddress[farmerId] ?? null : null,
+          payment_method: paymentMethod,
         });
+        createdIds.push(createdOrder.order_id);
         if (!firstCheckoutLink && createdOrder.checkout_link) {
           firstCheckoutLink = createdOrder.checkout_link;
         }
       }
 
       clearCart();
+
+      if (paymentMethod === "wallet") {
+        if (paymentWindow) paymentWindow.close();
+        router.push("/dashboard/buyer/orders");
+        return;
+      }
+
+      // Checkout payment path
       if (firstCheckoutLink) {
         if (paymentWindow) {
           paymentWindow.location.href = firstCheckoutLink;
         } else {
           window.open(firstCheckoutLink, "_blank");
         }
+        router.push("/dashboard/buyer/orders");
       } else {
-        if (paymentWindow) {
-          paymentWindow.close();
-        }
-        setError("Orders were created, but the payment link could not be generated. Please visit your orders page to retry payment.");
+        // Orders created but no checkout link — show retry panel
+        if (paymentWindow) paymentWindow.close();
+        setPendingOrderIds(createdIds);
+        setError(
+          "Your orders were placed but the payment link could not be generated. You can retry payment from your orders page."
+        );
       }
-      router.push("/dashboard/buyer/orders");
     } catch (err) {
-      if (paymentWindow) {
-        paymentWindow.close();
-      }
+      if (paymentWindow) paymentWindow.close();
       setError(err instanceof Error ? err.message : "Failed to place orders. Please try again.");
     } finally {
       setPlacing(false);
     }
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && pendingOrderIds.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -105,6 +130,30 @@ export default function CartPage() {
         >
           Browse Marketplace
         </Link>
+      </div>
+    );
+  }
+
+  // Retry panel — cart was cleared after successful order creation but checkout link was missing
+  if (pendingOrderIds.length > 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto space-y-4">
+        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
+          <i className="ri-error-warning-line text-2xl text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Orders placed — payment link missing</h2>
+        <p className="text-gray-500 text-sm">
+          Your orders were successfully created but the payment checkout link could not be generated.
+          Head to your orders page to retry payment or use a different method.
+        </p>
+        <div className="flex gap-3 w-full">
+          <Link
+            href="/dashboard/buyer/orders"
+            className="flex-1 py-3 rounded-xl bg-[#0D631B] text-white font-semibold text-sm text-center hover:bg-[#0a4f15] transition-colors"
+          >
+            Go to My Orders
+          </Link>
+        </div>
       </div>
     );
   }
@@ -280,7 +329,7 @@ export default function CartPage() {
           </div>
           <div className="flex justify-between text-gray-400 text-xs">
             <span>Payment processing</span>
-            <span>Handled by escrow</span>
+            <span>Held securely in escrow</span>
           </div>
           <div className="border-t border-gray-100 pt-2 flex justify-between font-bold text-gray-900 text-base">
             <span>Total</span>
@@ -288,15 +337,75 @@ export default function CartPage() {
           </div>
         </div>
 
+        {/* Payment Method Selection */}
+        <div className="border-t border-gray-100 pt-4">
+          <h4 className="font-semibold text-gray-900 mb-3">Payment Method</h4>
+          <div className="space-y-3">
+            <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
+              paymentMethod === "checkout"
+                ? "border-[#0D631B] bg-green-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}>
+              <input
+                type="radio"
+                name="payment_method"
+                value="checkout"
+                checked={paymentMethod === "checkout"}
+                onChange={() => setPaymentMethod("checkout")}
+                className="accent-[#0D631B]"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <i className="ri-bank-card-line text-gray-600" />
+                  <span className="font-medium text-gray-900">Card / Bank Transfer</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Pay securely via Nomba checkout — card, bank transfer, or USSD</p>
+              </div>
+            </label>
+
+            <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
+              paymentMethod === "wallet"
+                ? "border-[#0D631B] bg-green-50"
+                : "border-gray-200 hover:border-gray-300"
+            } ${!hasSufficientBalance ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <input
+                type="radio"
+                name="payment_method"
+                value="wallet"
+                checked={paymentMethod === "wallet"}
+                onChange={() => hasSufficientBalance && setPaymentMethod("wallet")}
+                disabled={!hasSufficientBalance}
+                className="accent-[#0D631B]"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <i className="ri-wallet-3-line text-gray-600" />
+                  <span className="font-medium text-gray-900">Wallet Balance</span>
+                  {!hasSufficientBalance && (
+                    <span className="text-xs text-red-500 font-medium">(Insufficient)</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Available: {wallet ? formatNaira(wallet.available_balance) : "₦0.00"}
+                  {hasSufficientBalance && " — Sufficient for this order"}
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <div className="bg-blue-50 rounded-xl px-4 py-3 flex items-start gap-2 text-xs text-blue-700">
           <i className="ri-shield-check-line mt-0.5 flex-shrink-0" />
           <span>
-            All payments are held in escrow and only released to the farmer after you confirm delivery. Your money is safe.
+            All payments are held in escrow and only released to the farmer after you confirm delivery. Your money is protected.
           </span>
         </div>
 
         {error && (
-          <p className="text-red-500 text-sm bg-red-50 rounded-xl px-4 py-3">{error}</p>
+          <div className="text-red-700 text-sm bg-red-50 rounded-xl px-4 py-3 flex items-start gap-2">
+            <i className="ri-error-warning-line mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
 
         <motion.button

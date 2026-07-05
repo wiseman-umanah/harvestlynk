@@ -52,7 +52,52 @@ export default function Profile() {
   const [pwSuccess, setPwSuccess] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
+  // Edit profile state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editFarmName, setEditFarmName] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editLga, setEditLga] = useState("");
+  const [editVillage, setEditVillage] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  function openEdit() {
+    setEditName(user?.name ?? "");
+    setEditFarmName(user?.farmName ?? "");
+    setEditState(user?.location_state ?? "");
+    setEditLga(user?.location_lga ?? "");
+    setEditVillage(user?.location_village ?? "");
+    setEditError("");
+    setEditSuccess(false);
+    setEditOpen(true);
+  }
+
+  async function handleEditSave() {
+    if (!editName.trim()) { setEditError("Full name is required."); return; }
+    setEditError("");
+    setEditLoading(true);
+    try {
+      await usersApi.updateUser({
+        fullName: editName.trim(),
+        farmName: editFarmName.trim() || undefined,
+        locationState: editState.trim() || undefined,
+        locationLga: editLga.trim() || undefined,
+        locationVillage: editVillage.trim() || undefined,
+      });
+      await refreshUser();
+      setEditSuccess(true);
+      setTimeout(() => { setEditOpen(false); setEditSuccess(false); }, 1400);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to update profile.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
   }, []);
 
@@ -72,6 +117,7 @@ export default function Profile() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const displayName = user?.name ?? "Farmer";
@@ -197,7 +243,69 @@ export default function Profile() {
             >
               View Wallet
             </motion.button>
+
+            {/* Edit Profile button */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={openEdit}
+              className="mt-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <i className="ri-edit-line" /> Edit Profile
+            </motion.button>
           </div>
+
+          {/* Edit Profile Form */}
+          {editOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl shadow-sm p-5 border border-[#0D631B]/20"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-gray-900">Edit Profile</h3>
+                <button onClick={() => setEditOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <i className="ri-close-line text-lg" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Full Name *", value: editName,    set: setEditName,    placeholder: "e.g. Adebayo Okonkwo" },
+                  { label: "Farm Name",   value: editFarmName, set: setEditFarmName, placeholder: "e.g. Okonkwo Farms" },
+                  { label: "State",       value: editState,   set: setEditState,   placeholder: "e.g. Ogun" },
+                  { label: "LGA",         value: editLga,     set: setEditLga,     placeholder: "e.g. Abeokuta North" },
+                  { label: "Village",     value: editVillage, set: setEditVillage, placeholder: "e.g. Idi-Aba" },
+                ].map(({ label, value, set, placeholder }) => (
+                  <div key={label}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
+                    <input
+                      value={value}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={placeholder}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors"
+                    />
+                  </div>
+                ))}
+                {editError && <p className="text-red-500 text-xs p-2.5 bg-red-50 rounded-xl">{editError}</p>}
+                {editSuccess && (
+                  <p className="text-green-600 text-xs p-2.5 bg-green-50 rounded-xl flex items-center gap-1">
+                    <i className="ri-checkbox-circle-line" /> Profile updated!
+                  </p>
+                )}
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleEditSave}
+                  disabled={editLoading}
+                  className="w-full py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-semibold hover:bg-[#0a4f15] transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {editLoading
+                    ? <><i className="ri-loader-4-line animate-spin" /> Saving…</>
+                    : "Save Changes"
+                  }
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Verification Credentials */}
           <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
@@ -366,11 +474,18 @@ export default function Profile() {
                       whileHover={{ y: -3, transition: { duration: 0.2 } }}
                       className="bg-white rounded-2xl overflow-hidden border border-gray-100"
                     >
-                      <div className={`relative h-36 bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
-                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
+                      <div className="relative h-36 overflow-hidden">
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-[#0D631B] text-white text-xs px-2 py-0.5 rounded-full">
                           <i className="ri-checkbox-circle-fill text-xs" /> ACTIVE
                         </div>
-                        <i className={`${style.icon} text-4xl`} />
+                        {item.images?.length ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.images[0]} alt={item.product_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className={`w-full h-full bg-gradient-to-br ${style.bg} flex items-center justify-center`}>
+                            <i className={`${style.icon} text-4xl`} />
+                          </div>
+                        )}
                       </div>
                       <div className="p-4">
                         <p className="font-semibold text-gray-900 text-sm mb-0.5">{item.product_name}</p>

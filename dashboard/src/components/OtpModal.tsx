@@ -31,6 +31,7 @@ export default function OtpModal({ email, redirectTo, onClose }: Props) {
   // Countdown timer
   useEffect(() => {
     if (countdown <= 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCanResend(true);
       return;
     }

@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -80,7 +80,16 @@ async function getAccessToken(): Promise<string> {
   return cachedAccessToken;
 }
 
-async function nombaRequest<T>(path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
+type NombaRequestOptions = {
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
+async function nombaRequest<T>(
+  path: string,
+  method: "GET" | "POST" | "PUT" = "GET",
+  options: NombaRequestOptions = {},
+): Promise<T> {
   const token = await getAccessToken();
   const url = `${NOMBAS_BASE_URL}${path}`;
 
@@ -88,12 +97,13 @@ async function nombaRequest<T>(path: string, method: "GET" | "POST" = "GET", bod
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
     accountId: getNombaParentAccountId(),
+    ...options.headers,
   };
 
   const response = await fetch(url, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
   const payload = (await response.json()) as NombaResponse<T>;
@@ -115,9 +125,110 @@ export function getNombaConfig() {
 }
 
 export function verifyWebhookSignature(payload: string | Buffer, signature: string): boolean {
-  const webhookSecret = getNombaWebhookSecret();
-  const hmac = createHmac("sha256", webhookSecret).update(payload).digest("hex");
-  return hmac === signature;
+  return verifyWebhookSignatureWithTimestamp(payload, signature, undefined);
+}
+
+function secureCompare(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function hmacDigest(value: string | Buffer, encoding: "base64" | "hex"): string {
+  return createHmac("sha256", getNombaWebhookSecret()).update(value).digest(encoding);
+}
+
+/**
+ * Build Nomba's documented signing string from the parsed payload.
+ *
+ * Nomba's documentation describes the signed string as a concatenation of specific
+ * fields: event_type + requestId + merchant fields + transaction fields + nomba-timestamp.
+ * In practice the exact field list varies by event type; we attempt the most common shape
+ * and let the raw-body check handle any mismatch.
+ *
+ * Reference: https://nomba.com/docs/webhooks
+ */
+function buildNombaSigningString(payload: unknown, timestamp?: string): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const data = (p["data"] ?? {}) as Record<string, unknown>;
+
+  const parts: string[] = [];
+
+  // event type — top-level or nested
+  const eventType = String(p["event"] ?? p["type"] ?? p["eventType"] ?? data["event"] ?? "");
+  if (eventType) parts.push(eventType);
+
+  // requestId
+  const requestId = String(p["requestId"] ?? p["request_id"] ?? data["requestId"] ?? "");
+  if (requestId) parts.push(requestId);
+
+  // merchant / account fields
+  const merchantId = String(p["merchantId"] ?? p["merchant_id"] ?? data["merchantId"] ?? "");
+  if (merchantId) parts.push(merchantId);
+
+  // transaction fields (common across checkout and transfer events)
+  const orderRef = String(
+    p["orderReference"] ?? p["order_ref"] ?? data["orderReference"] ?? data["merchantTxRef"] ?? "",
+  );
+  if (orderRef) parts.push(orderRef);
+
+  const amount = String(p["amount"] ?? data["amount"] ?? data["transactionAmount"] ?? "");
+  if (amount) parts.push(amount);
+
+  const currency = String(p["currency"] ?? data["currency"] ?? "");
+  if (currency) parts.push(currency);
+
+  if (timestamp) parts.push(timestamp);
+
+  return parts.length > 0 ? parts.join("") : null;
+}
+
+export function verifyWebhookSignatureWithTimestamp(
+  payload: string | Buffer,
+  signature: string,
+  timestamp?: string,
+): boolean {
+  if (!signature) return false;
+
+  const raw = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+  const rawText = raw.toString("utf8");
+
+  // Candidates to try in priority order:
+  // 1. raw body as-is (most common — many gateways HMAC the raw request body)
+  // 2. raw body string
+  // 3. timestamp-prefixed body  (nomba-timestamp + ":" + body)
+  // 4. Nomba field-based signing string (documented format)
+  const signedPayloads: (string | Buffer)[] = [raw, rawText];
+
+  if (timestamp) {
+    signedPayloads.push(`${timestamp}:${rawText}`);
+  }
+
+  let parsedPayload: unknown;
+  try {
+    parsedPayload = JSON.parse(rawText);
+  } catch {
+    parsedPayload = null;
+  }
+
+  const fieldSigningString = buildNombaSigningString(parsedPayload, timestamp);
+  if (fieldSigningString) {
+    signedPayloads.push(fieldSigningString);
+    // Also without timestamp in case timestamp is not included in the field string
+    const noTs = buildNombaSigningString(parsedPayload, undefined);
+    if (noTs && noTs !== fieldSigningString) signedPayloads.push(noTs);
+  }
+
+  for (const candidate of signedPayloads) {
+    const base64Digest = hmacDigest(candidate, "base64");
+    const hexDigest = hmacDigest(candidate, "hex");
+    if (secureCompare(base64Digest, signature) || secureCompare(hexDigest, signature)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function createCheckoutLink(options: {
@@ -160,11 +271,14 @@ export async function createCheckoutLink(options: {
     tokenizeCard: options.tokenizeCard ? "true" : "false",
   };
 
-  return nombaRequest<{ checkoutLink: string; orderReference: string }>("/v1/checkout/order", "POST", payload);
+  return nombaRequest<{ checkoutLink: string; orderReference: string }>("/v1/checkout/order", "POST", { body: payload });
 }
 
 export async function verifyTransaction(orderReference: string): Promise<unknown> {
-  return nombaRequest<unknown>("/v1/transactions/accounts/single", "POST", { orderReference });
+  return nombaRequest<unknown>(
+    `/v1/transactions/accounts/single?orderReference=${encodeURIComponent(orderReference)}`,
+    "GET",
+  );
 }
 
 export async function getNigerianBanks(): Promise<unknown> {
@@ -181,7 +295,7 @@ export async function lookupAccount(accountNumber: string, bankCode: string): Pr
     payload.accountId = NOMBA_SUB_ACCOUNT_ID;
   }
 
-  return nombaRequest<unknown>("/v1/transfers/bank/lookup", "POST", payload);
+  return nombaRequest<unknown>("/v1/transfers/bank/lookup", "POST", { body: payload });
 }
 
 export async function initiateTransfer(options: {
@@ -192,6 +306,7 @@ export async function initiateTransfer(options: {
   transferRef: string;
   senderName?: string;
   narration?: string;
+  idempotencyKey?: string;
 }): Promise<unknown> {
   const payload: Record<string, unknown> = {
     amount: formatKobo(options.amountKobo),
@@ -213,5 +328,109 @@ export async function initiateTransfer(options: {
     payload.accountId = NOMBA_SUB_ACCOUNT_ID;
   }
 
-  return nombaRequest<unknown>("/v2/transfers/bank", "POST", payload);
+  return nombaRequest<unknown>("/v2/transfers/bank", "POST", {
+    body: payload,
+    headers: {
+      "Idempotency-Key": options.idempotencyKey ?? options.transferRef,
+    },
+  });
+}
+
+export async function createVirtualAccount(options: {
+  accountRef: string;
+  accountName: string;
+  currency?: string;
+  bvn?: string;
+  expectedAmount?: number;
+  expiryDate?: string;
+}): Promise<{
+  accountRef: string;
+  accountHolderId: string;
+  accountName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  bankName: string;
+  bvn: string;
+  currency: string;
+  expiryDate?: string;
+  expired: boolean;
+  createdAt: string;
+}> {
+  const payload: Record<string, unknown> = {
+    accountRef: options.accountRef,
+    accountName: options.accountName,
+    currency: options.currency ?? "NGN",
+  };
+
+  if (options.bvn) {
+    payload.bvn = options.bvn;
+  }
+
+  if (options.expectedAmount) {
+    payload.expectedAmount = options.expectedAmount;
+  }
+
+  if (options.expiryDate) {
+    payload.expiryDate = options.expiryDate;
+  }
+
+  return nombaRequest<{
+    accountRef: string;
+    accountHolderId: string;
+    accountName: string;
+    bankAccountNumber: string;
+    bankAccountName: string;
+    bankName: string;
+    bvn: string;
+    currency: string;
+    expiryDate?: string;
+    expired: boolean;
+    createdAt: string;
+  }>("/v1/accounts/virtual", "POST", { body: payload });
+}
+
+export async function suspendVirtualAccount(accountId: string): Promise<boolean> {
+  return nombaRequest<boolean>(`/v1/accounts/suspend/${accountId}`, "PUT", { body: {} });
+}
+
+export async function lookupVirtualAccount(accountRef: string): Promise<unknown> {
+  return nombaRequest<unknown>(`/v1/accounts/virtual/${accountRef}`, "GET");
+}
+
+/**
+ * Cancel a pending Nomba checkout order before payment is captured.
+ * Only valid when the order is still in PENDING state on Nomba's side.
+ *
+ * Nomba API: POST /v1/checkout/order/cancel
+ */
+export async function cancelCheckoutOrder(orderReference: string): Promise<void> {
+  await nombaRequest<unknown>("/v1/checkout/order/cancel", "POST", {
+    body: { orderReference },
+  });
+}
+
+/**
+ * Initiate a refund for a previously captured Nomba checkout payment.
+ *
+ * Nomba API: POST /v1/checkout/refund
+ */
+export async function refundCheckoutPayment(options: {
+  orderReference: string;
+  /** Amount to refund in kobo. If omitted, full amount is refunded. */
+  amountKobo?: number;
+  reason?: string;
+}): Promise<{ refundReference: string }> {
+  const payload: Record<string, unknown> = {
+    orderReference: options.orderReference,
+  };
+
+  if (options.amountKobo !== undefined) {
+    payload.amount = formatKobo(options.amountKobo);
+  }
+
+  if (options.reason) {
+    payload.reason = options.reason;
+  }
+
+  return nombaRequest<{ refundReference: string }>("/v1/checkout/refund", "POST", { body: payload });
 }

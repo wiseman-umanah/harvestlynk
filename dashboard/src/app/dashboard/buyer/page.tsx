@@ -64,6 +64,7 @@ export default function BuyerDashboard() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   function handleAddToCart(listing: PublicListing) {

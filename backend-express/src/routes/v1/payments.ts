@@ -3,6 +3,6 @@ import { handleNombaWebhook } from "../../controllers/payments.controller.js";
 
 const router: IRouter = express.Router();
 
-router.post("/nomba-webhook", express.raw({ type: "*/*" }), handleNombaWebhook);
+router.post("/nomba-webhook", handleNombaWebhook);
 
 export default router;
