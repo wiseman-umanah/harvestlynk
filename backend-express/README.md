@@ -1,228 +1,244 @@
-# HarvestLynk Backend API
+# backend-express
 
-Express 5 REST API with WebSocket support powering the HarvestLynk platform.
+Express 5 REST API and WebSocket server for HarvestLynk. Written in TypeScript with ESM modules. Handles authentication (via Supabase), marketplace listings, orders with escrow, wallet and payouts (via Nomba), virtual accounts, real-time notifications over WebSocket, and crop scan persistence.
 
-## Stack
+---
 
-- **Runtime** — Node.js 22, TypeScript 6, ESM (`"type": "module"`, NodeNext)
-- **Framework** — Express 5
-- **Database** — PostgreSQL via Drizzle ORM (`postgres` driver)
-- **Auth** — JWT stored in `httpOnly` cookie (`sameSite: lax`), Bearer token fallback for tests
-- **Real-time** — WebSocket server (`ws`) at `/ws` — cookie auth on upgrade
-- **File uploads** — Cloudinary via `multer` (memory storage)
-- **Validation** — Zod
-- **Tests** — Vitest + Supertest (156 tests)
+## Requirements
 
-## Local Development
+- Node.js 20+
+- pnpm 9+
+- PostgreSQL 15+
+- A [Supabase](https://supabase.com) project (for Auth)
+- A [Nomba](https://nomba.com) account (for payments)
+- A [Cloudinary](https://cloudinary.com) account (for file uploads)
 
-### Prerequisites
+---
 
-- Node.js 22+
-- pnpm 10+
-- PostgreSQL running locally
-
-### Setup
+## Setup
 
 ```bash
+cd backend-express
 pnpm install
+cp .env.example .env    # then fill in all values
+pnpm db:migrate         # apply all pending migrations
+pnpm dev                # starts on http://localhost:4000
 ```
 
-Create a `.env` file:
+---
 
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/harvestlynk
-JWT_SECRET=your-secret-here
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
-NOMBA_CLIENT_ID=your-nomba-client-id
-NOMBA_CLIENT_SECRET=your-nomba-client-secret
-NOMBA_PARENT_ACCOUNT_ID=your-nomba-parent-account-id
-NOMBA_SUB_ACCOUNT_ID=your-nomba-sub-account-id
-NOMBA_ENV=sandbox
-NOMBA_WEBHOOK_SECRET=your-nomba-webhook-secret
-PORT=4000
-CORS_ORIGINS=http://localhost:3000
-```
+## Environment Variables
 
-Apply the database schema:
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `PORT` | HTTP port (default `4000`) |
+| `FRONTEND_URL` | Dashboard origin, used in Supabase email redirect links |
+| `APP_URL` | This API's own public URL |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID (must also be configured in Supabase) |
+| `JWT_SECRET` | Secret for local token signing (`signAccessToken`) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
+| `NOMBA_CLIENT_ID` | Nomba OAuth client ID |
+| `NOMBA_CLIENT_SECRET` | Nomba OAuth client secret |
+| `NOMBA_PARENT_ACCOUNT_ID` | Nomba parent account ID |
+| `NOMBA_SUB_ACCOUNT_ID` | Nomba sub-account ID (optional) |
+| `NOMBA_WEBHOOK_SECRET` | Secret used to verify Nomba webhook signatures |
+| `NOMBA_ENV` | `sandbox` or `production` (default `sandbox`) |
+| `SMTP_HOST` | SMTP host for transactional email |
+| `SMTP_PORT` | SMTP port |
+| `SMTP_USER` | SMTP username |
+| `SMTP_PASS` | SMTP password |
+| `SMTP_FROM` | From address for sent emails |
+
+---
+
+## Scripts
 
 ```bash
-pnpm db:push
+pnpm dev          # nodemon + tsx hot reload
+pnpm build        # tsc → dist/
+pnpm start        # run compiled dist/index.js
+pnpm test         # vitest run (all tests, once)
+pnpm test:watch   # vitest watch mode
+pnpm db:generate  # generate a SQL migration from schema changes
+pnpm db:migrate   # apply pending migrations
+pnpm db:push      # push schema directly to DB (dev only, no migration file)
+pnpm db:studio    # open Drizzle Studio in browser
 ```
 
-Start the development server (auto-restarts on file change):
+---
+
+## Architecture
+
+### Entry Points
+
+- **`src/index.ts`** — creates the HTTP server, attaches the WebSocket handler (`initWsServer`), and starts Express.
+- **`src/app.ts`** — configures middleware in order: CORS → raw body capture (webhook path) → JSON/urlencoded parsing → rate limiter → health check → Swagger UI → versioned routes → error handler.
+
+### Routes (`/api/v1`)
+
+| Prefix | Resource |
+|---|---|
+| `/auth` | Signup, login, Google OAuth, email verification, password reset, refresh, logout |
+| `/users` | User profiles, current user, stats, verification uploads, liveness, ratings |
+| `/marketplace` | Public listing browse/detail; farmer listing CRUD, image upload |
+| `/orders` | Create order, buyer/farmer order lists, status transitions, delivery confirmation, cancellation, dispute, rating |
+| `/payments` | Nomba webhook handler (`POST /nomba-webhook`) |
+| `/wallet` | Balance, transactions, ledger, bank list, bank verification, withdrawal/payout |
+| `/virtual-accounts` | Buyer virtual account creation, retrieval, suspension |
+| `/notifications` | List, unread count, mark read, mark all read |
+| `/scans` | Crop scan result persistence and history |
+
+### Authentication
+
+Authentication is **Supabase Auth + Bearer token** — no cookies.
+
+- `POST /auth/signup` and `/auth/login` delegate to Supabase Auth and return `{ accessToken, refreshToken }`.
+- Every protected route reads `Authorization: Bearer <token>` and calls `getSupabaseAdmin().auth.getUser(token)`.
+- The local `users` table is the app profile/role store. The Supabase user email maps to the local row.
+- Google OAuth is supported via `/auth/google` using Supabase's `signInWithIdToken`.
+
+### Money Convention
+
+All money fields in the database are **integers in kobo** (1 NGN = 100 kobo):
+
+- `wallets.availableBalance`, `pendingBalance`, `totalPaidIn`, `totalPaidOut`
+- `orders.totalAmount`, `listings.pricePerUnit`, `listings.totalPrice`
+- `payments.amount`, `payouts.grossAmount`, `payouts.netAmount`
+
+Never store naira floats in the database. Convert only at the API response boundary using `koboToNaira` / `nairaToKobo` in the dashboard.
+
+### Order State Machine
+
+```
+pending_payment → payment_confirmed → processing → ready_for_pickup → completed
+                                   ↘ cancellation_requested → cancelled
+pending_payment → cancelled
+payment_confirmed → refund_pending → refunded
+any paid state → disputed
+```
+
+- Farmer can only advance: `payment_confirmed → processing` and `processing → ready_for_pickup`.
+- Farmer cannot process an unpaid order.
+- Buyer can cancel before payment or request cancellation after payment (farmer must accept/reject).
+- Disputes freeze escrow in farmer `pendingBalance`.
+- Admin/agent resolves disputes via `PATCH /:id/resolve-dispute`.
+
+### Real-Time Notifications
+
+WebSocket endpoint is `/ws`. The client passes the Supabase access token as `?token=...` (browsers cannot set headers on WebSocket handshakes). An in-memory `Map<userId, Set<WebSocket>>` tracks connected clients per user. Notifications are written to the database and then pushed live when the user is connected.
+
+### Payments (Nomba)
+
+- **Checkout:** `createCheckoutLink` generates a hosted payment page. The Nomba webhook at `POST /api/v1/payments/nomba-webhook` processes `payment_success`, `payment_failed`, `payout_success`, `payout_failed`, and virtual account deposit events.
+- **Virtual accounts:** buyers can create a dedicated NGN bank account number via Nomba. Deposits to that account credit the buyer's wallet.
+- **Payouts:** farmers withdraw via `POST /wallet/withdraw`. The transfer is initiated via Nomba and completed/failed from the webhook.
+- **Idempotency:** the webhook handler checks for an existing `payments` record with the same `nombaReference` before crediting escrow.
+
+---
+
+## Database
+
+Managed with [Drizzle ORM](https://orm.drizzle.team). Schema lives in `src/db/schema.ts`.
+
+### Key Tables
+
+| Table | Purpose |
+|---|---|
+| `users` | Farmer/buyer profiles, role, verification state, bank details, trust score |
+| `wallets` | Per-user wallet with available/pending balances |
+| `wallet_ledger_entries` | Immutable ledger of every balance-changing event |
+| `transactions` | User-visible debit/credit history |
+| `listings` | Farmer produce listings with price (kobo), quantity, status |
+| `orders` | Buyer orders referencing a listing, farmer, and buyer |
+| `payments` | Nomba/wallet payment records per order |
+| `payouts` | Farmer payout/transfer records |
+| `virtual_accounts` | Buyer Nomba virtual bank accounts |
+| `notifications` | Persisted notification records |
+| `scans` | Crop disease scan results uploaded by farmers |
+
+### Migrations
 
 ```bash
-pnpm dev
+pnpm db:generate   # diff schema.ts against DB → new SQL file in drizzle/
+pnpm db:migrate    # apply all unapplied migrations
 ```
 
-The API is available at `http://localhost:4000`.
+---
 
-### Database Commands
+## Testing
 
-```bash
-pnpm db:push       # push schema changes directly to the database
-pnpm db:generate   # generate SQL migration files
-pnpm db:migrate    # run pending migrations
-pnpm db:studio     # open Drizzle Studio (visual DB browser)
-```
+Tests use [Vitest](https://vitest.dev) + [Supertest](https://github.com/ladjs/supertest) against a **real PostgreSQL database**. There are no database mocks. The test setup truncates all tables before each test and after the full run.
 
 ### Running Tests
 
 ```bash
-pnpm test          # run all tests once
-pnpm test:watch    # watch mode
+pnpm test                                              # all files, once
+pnpm exec vitest run src/tests/orders.test.ts         # single file
+pnpm test:watch                                        # watch mode
 ```
 
-Tests run against a real PostgreSQL database (no mocks). Set `DATABASE_URL` to a test database before running.
+### Test Files
 
-## Environment Variables
+| File | Coverage |
+|---|---|
+| `auth.test.ts` | Signup, email verification, change-password |
+| `users.test.ts` | Profile CRUD, stats, ratings |
+| `marketplace.test.ts` | Listing browse, filter, CRUD |
+| `orders.test.ts` | Create order, status transitions, delivery confirmation, rating |
+| `orders-escrow.test.ts` | Cancel, refund, dispute, cancellation request/response, resolve dispute |
+| `payments.test.ts` | Nomba webhook: payment success, idempotency, payment failed, payout success/failure |
+| `wallet.test.ts` | Balance, transactions, ledger, bank verify, withdrawal, idempotency, payout requery |
+| `notifications.test.ts` | List, unread count, mark read, mark all read |
+| `virtual-accounts.test.ts` | Create, get, suspend |
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `JWT_SECRET` | Yes | Secret used to sign JWTs |
-| `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary account cloud name |
-| `CLOUDINARY_API_KEY` | Yes | Cloudinary API key |
-| `CLOUDINARY_API_SECRET` | Yes | Cloudinary API secret |
-| `NOMBA_CLIENT_ID` | Yes | Nomba client ID used for access token requests |
-| `NOMBA_CLIENT_SECRET` | Yes | Nomba client secret used for access token requests |
-| `NOMBA_PARENT_ACCOUNT_ID` | Yes | Nomba parent account ID used in `accountId` headers |
-| `NOMBA_SUB_ACCOUNT_ID` | No | Optional Nomba sub-account ID used for scoped checkout/transfer payloads |
-| `NOMBA_ENV` | No | Nomba environment (`sandbox` or `production`, default: `sandbox`) |
-| `NOMBA_WEBHOOK_SECRET` | No | Secret used to verify Nomba webhook HMAC signatures |
-| `PORT` | No | HTTP port (default: `4000`) |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins (default: `http://localhost:3000`) |
-| `NODE_ENV` | No | Set to `production` in prod; disables morgan logging |
+**Important:** do not run tests against a production database. The global `beforeEach` wipes all data.
 
-## API Reference
+### Auth Mocking
 
-All authenticated endpoints require the `jwt` cookie (set on login) or an `Authorization: Bearer <token>` header.
+Every test file mocks `../utils/supabase.js` so that `getSupabaseAdmin().auth.getUser(token)` decodes the locally-signed JWT rather than calling Supabase. Test users are seeded directly into the database with `db.insert(users)` — no HTTP signup flow required.
 
-### Auth — `/api/auth`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/api/auth/signup` | No | Register a new user |
-| POST | `/api/auth/login` | No | Sign in, sets `jwt` cookie |
-| POST | `/api/auth/sign-in/email` | No | Alias for login |
-| GET | `/api/auth/get-session` | Yes | Return current session user |
-| POST | `/api/auth/sign-out` | Yes | Clear `jwt` cookie |
-
-### Users — `/users`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/users/me` | Yes | Current user profile + wallet |
-| GET | `/users/me/stats` | Yes | Dashboard stats (farmer or buyer) |
-| POST | `/users/avatar` | Yes | Upload profile picture |
-| POST | `/users/liveness-check` | Yes | AI liveness verification (selfie upload) |
-| POST | `/users/verify-nin` | Yes | Upload NIN document |
-| POST | `/users/upload-ownership-doc` | Yes | Upload land ownership document |
-| GET | `/users/liveness-check` | Yes | Get liveness check status |
-| GET | `/users/:id` | Yes | Get user by ID |
-| GET | `/users/` | Yes | List all users |
-| GET | `/users/:id/ratings` | No | Get farmer ratings and average score |
-
-### Wallet — `/wallet`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/wallet/banks` | No | List supported Nigerian banks |
-| GET | `/wallet/balance` | Yes | Current wallet balance |
-| GET | `/wallet/transactions` | Yes | Transaction history |
-| POST | `/wallet/verify-bank` | Yes | Verify bank account number |
-| POST | `/wallet/withdraw` | Yes | Request a withdrawal |
-
-### Marketplace — `/marketplace`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/marketplace/listings` | No | Paginated listings `{ data, page, limit, total }` |
-| GET | `/marketplace/listings/:id` | No | Single listing |
-| GET | `/marketplace/listings/my` | Yes (farmer) | Current farmer's listings |
-| POST | `/marketplace/listings` | Yes (farmer) | Create listing |
-| PATCH | `/marketplace/listings/:id` | Yes (farmer) | Update own listing |
-| DELETE | `/marketplace/listings/:id` | Yes (farmer) | Delete own listing |
-| POST | `/marketplace/upload` | Yes | Upload listing image |
-
-### Orders — `/orders`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/orders` | Yes (buyer) | Place an order |
-| GET | `/orders/buyer` | Yes (buyer) | Buyer's orders |
-| GET | `/orders/my` | Yes (farmer) | Farmer's received orders |
-| PATCH | `/orders/:id/confirm-delivery` | Yes (buyer) | Confirm delivery received |
-| PATCH | `/orders/:id/status` | Yes (farmer) | Advance order status |
-| PATCH | `/orders/:id/cancel` | Yes | Cancel order (buyer or farmer) |
-| POST | `/orders/:id/rate` | Yes (buyer) | Rate a completed order |
-
-Order status flow:
-```
-pending_payment → payment_confirmed → processing → ready_for_pickup → delivered → completed
-                                                                    ↘ cancelled
+```ts
+vi.mock("../utils/supabase.js", () => ({
+  getSupabaseAdmin: () => ({
+    auth: {
+      getUser: async (token: string) => {
+        const [, b64] = token.split(".");
+        const p = JSON.parse(Buffer.from(b64, "base64url").toString());
+        return { data: { user: { email: p.email, email_confirmed_at: new Date().toISOString() } }, error: null };
+      },
+    },
+  }),
+  isSupabaseEmailVerified: () => true,
+}));
 ```
 
-### Notifications — `/notifications`
+---
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/notifications` | Yes | All notifications |
-| GET | `/notifications/unread-count` | Yes | `{ count: number }` |
-| PATCH | `/notifications/:id/read` | Yes | Mark one as read |
-| PATCH | `/notifications/read-all` | Yes | Mark all as read |
+## Project Structure
 
-### Scans — `/scans`
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/scans` | Yes | Upload crop image for AI diagnosis |
-| GET | `/scans/my` | Yes | Current user's scan history |
-
-## WebSocket
-
-Connect to `ws://localhost:4000/ws`.
-
-Authentication: the server reads the `jwt` cookie from the upgrade request headers. As a fallback, pass the token as a query param: `ws://localhost:4000/ws?token=<jwt>`.
-
-On connect, the server sends `{ "type": "connected" }`.
-
-Real-time events pushed to the client:
-
-```json
-{ "type": "notification", "notification": { "id": "...", "message": "...", "type": "order|payment|system", "read": false, "created_at": "..." } }
 ```
-
-## Docker Deployment
-
-The image is built in two stages — a builder stage compiles TypeScript, the runner stage installs only production dependencies. No database credentials are needed at build time (Drizzle has no codegen step unlike Prisma).
-
-```bash
-# Build the image (done in CI or on the server — not locally)
-docker build -t harvestlynk-backend .
-
-# Run (pass secrets as env vars, never bake them into the image)
-docker run -d \
-  -p 4000:4000 \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
-  -e JWT_SECRET="your-secret" \
-  -e CLOUDINARY_CLOUD_NAME="..." \
-  -e CLOUDINARY_API_KEY="..." \
-  -e CLOUDINARY_API_SECRET="..." \
-  -e CORS_ORIGINS="https://yourdomain.com" \
-  harvestlynk-backend
+src/
+  app.ts                   Express app configuration
+  index.ts                 HTTP + WebSocket server entrypoint
+  controllers/             Route handler functions
+  db/
+    index.ts               Drizzle client
+    schema.ts              Full database schema
+  middleware/
+    auth.ts                authenticate() Bearer token middleware
+    rateLimiter.ts         express-rate-limit (production only)
+  routes/v1/               Express Router files per resource
+  tests/                   Vitest test files + setup
+  utils/
+    jwt.ts                 signAccessToken, verifyAccessToken
+    nomba.ts               Nomba API client (checkout, transfer, virtual accounts)
+    notifications.ts       createNotification helper
+    supabase.ts            getSupabaseAdmin() wrapper
+    wsServer.ts            WebSocket server and pushToUser()
+drizzle/                   SQL migration files
 ```
-
-The container runs as a non-root user (`appuser`) and exposes port `4000`. A health check hits `GET /health` every 30 seconds.
-
-### Database migrations in production
-
-Run migrations against your production database before starting the new container:
-
-```bash
-DATABASE_URL="postgresql://..." pnpm db:migrate
-```
-
-Or use `pnpm db:push` for simpler deployments where you don't need migration files.
