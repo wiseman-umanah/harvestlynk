@@ -9,3 +9,5 @@ test-output.log
 .codex
 recover-funds.mjs
 restore-user.mjs
+payload.json 
+

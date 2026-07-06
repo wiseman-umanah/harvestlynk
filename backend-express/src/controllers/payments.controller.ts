@@ -20,6 +20,9 @@ function getEventType(payload: any): string {
 
 function getOrderReference(payload: any): string | undefined {
   return (
+    // Nomba production: checkout order ID is at data.order.orderId
+    payload.data?.order?.orderId ??
+    payload.data?.order?.orderReference ??
     payload.orderReference ??
     payload.order_ref ??
     payload.data?.orderReference ??
@@ -31,6 +34,9 @@ function getOrderReference(payload: any): string | undefined {
 
 function getMerchantTxRef(payload: any): string | undefined {
   return (
+    // Nomba production: merchantTxRef is at data.transaction.merchantTxRef
+    payload.data?.transaction?.merchantTxRef ??
+    payload.data?.transaction?.merchant_tx_ref ??
     payload.merchantTxRef ??
     payload.merchant_tx_ref ??
     payload.data?.merchantTxRef ??
@@ -249,7 +255,9 @@ export async function handleNombaWebhook(req: Request, res: Response) {
  */
 async function handleTopupPaymentSuccess(orderReference: string, payload: any, res: Response) {
   // The userId is stored in orderMetaData.userId when the checkout was created.
+  // Nomba production places this at data.order.orderMetaData.userId.
   const userId: string | undefined =
+    payload.data?.order?.orderMetaData?.userId ??
     payload.data?.orderMetaData?.userId ??
     payload.orderMetaData?.userId ??
     payload.data?.meta?.userId ??
@@ -342,12 +350,11 @@ async function handlePaymentSuccess(payload: any, res: Response) {
   }
 
   // ── Wallet top-up checkout ────────────────────────────────────────────────
-  // Detect a topup either by our prefix (if Nomba preserved it) OR by the
-  // orderMetaData.type field we embed when creating the checkout order.
-  // Nomba sometimes replaces our orderReference with their own "ord_..." ID
-  // for bank-transfer payments, so the prefix check alone is not reliable.
+  // Detect a topup either by our prefix OR by the orderMetaData.type field.
+  // Nomba production places orderMetaData at data.order.orderMetaData.
   const isTopup =
     orderReference.startsWith(TOPUP_ORDER_PREFIX) ||
+    payload.data?.order?.orderMetaData?.type === "wallet_topup" ||
     payload.data?.orderMetaData?.type === "wallet_topup" ||
     payload.orderMetaData?.type === "wallet_topup";
 
