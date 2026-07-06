@@ -334,12 +334,29 @@ export async function initiateTransfer(options: {
     payload.accountId = NOMBA_SUB_ACCOUNT_ID;
   }
 
-  const response = await nombaRequestRaw<unknown>("/v2/transfers/bank", "POST", {
-    body: payload,
-    headers: {
-      "Idempotency-Key": options.idempotencyKey ?? options.transferRef,
-    },
-  });
+  let response: NombaResponse<unknown>;
+  try {
+    response = await nombaRequestRaw<unknown>("/v2/transfers/bank", "POST", {
+      body: payload,
+      headers: {
+        "Idempotency-Key": options.idempotencyKey ?? options.transferRef,
+      },
+    });
+  } catch (err) {
+    // nombaRequestRaw throws NombaError on non-2xx HTTP status (e.g. 400 INSUFFICIENT_BALANCE).
+    // Convert to a rejected TransferOutcome so the caller's rejection path handles it,
+    // not the network-error path which assumes the transfer never reached Nomba.
+    if (err instanceof NombaError) {
+      const r = err.response as NombaResponse<unknown> | undefined;
+      return {
+        accepted: false,
+        code: r?.code ?? "error",
+        description: r?.description ?? err.message,
+        raw: r,
+      };
+    }
+    throw err; // genuine network error — re-throw so caller can refund
+  }
 
   if (NOMBA_TRANSFER_PENDING_CODES.has(response.code)) {
     // "00", "200", "success", "true" all mean instant success — not pending.

@@ -371,7 +371,6 @@ export async function withdraw(req: AuthRequest, res: Response) {
   }
 
   if (!outcome.accepted) {
-    // Nomba explicitly rejected the transfer (e.g. invalid account, insufficient funds on provider).
     console.warn("[withdraw] Nomba rejected transfer:", outcome.code, outcome.description);
     await _refundFailedPayout({
       walletId: walletSnapshot.walletId,
@@ -383,9 +382,18 @@ export async function withdraw(req: AuthRequest, res: Response) {
       transferRef: walletSnapshot.transferRef,
       reason: `Nomba rejection code ${outcome.code}: ${outcome.description}`,
     });
+
+    // Return a user-readable message for known rejection reasons.
+    const desc = (outcome.description ?? "").toUpperCase();
+    const userMessage =
+      desc.includes("INSUFFICIENT") ? "Insufficient funds in the payout account. Please contact support." :
+      desc.includes("INVALID_ACCOUNT") || desc.includes("ACCOUNT_NOT_FOUND") ? "Invalid destination bank account. Please verify your account details." :
+      desc.includes("INVALID_BANK") ? "Invalid bank code. Please select a valid bank." :
+      `Transfer rejected: ${outcome.description}`;
+
     res.status(422).json({
       success: false,
-      error: "Transfer rejected by payout provider",
+      error: userMessage,
       nomba_code: outcome.code,
       details: outcome.description,
     });

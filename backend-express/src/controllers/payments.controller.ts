@@ -13,7 +13,8 @@ function parseWebhookPayload(raw: Buffer): unknown {
 
 function getEventType(payload: any): string {
   return String(
-    payload.event ?? payload.type ?? payload.eventType ?? payload.data?.event ?? payload.data?.type ?? ""
+    // Nomba production field is "event_type" (underscore) — check it first.
+    payload.event_type ?? payload.event ?? payload.eventType ?? payload.type ?? payload.data?.event_type ?? payload.data?.event ?? payload.data?.type ?? ""
   ).toLowerCase();
 }
 
