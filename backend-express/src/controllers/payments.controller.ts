@@ -136,7 +136,10 @@ export async function handleNombaWebhook(req: Request, res: Response) {
   // so req.body must be a Buffer. Any other type means a misconfigured
   // middleware stack — reject immediately to prevent signature bypass.
   if (!Buffer.isBuffer(req.body)) {
-    console.error("[nomba-webhook] req.body is not a Buffer — check middleware order in app.ts");
+    console.error("[nomba-webhook] req.body is not a Buffer — check middleware order in app.ts",
+      "body type:", typeof req.body,
+      "content-type:", req.header("content-type"),
+    );
     res.status(400).json({ error: "Invalid request body format" });
     return;
   }
@@ -146,11 +149,32 @@ export async function handleNombaWebhook(req: Request, res: Response) {
   const signature = req.header("nomba-signature") ?? req.header("nomba-sig-value") ?? "";
   const timestamp = req.header("nomba-timestamp");
 
-  if (!verifyWebhookSignatureWithTimestamp(rawBody, signature, timestamp)) {
-    console.warn("[nomba-webhook] signature verification failed — rejecting request");
+  // Log every incoming webhook — enough to confirm receipt and trace sig failures
+  // without dumping secrets or full card details.
+  console.log("[nomba-webhook] received — body-bytes:", rawBody.length,
+    "| content-type:", req.header("content-type"),
+    "| nomba-signature:", signature ? `${signature.slice(0, 12)}…` : "(absent)",
+    "| nomba-sig-value:", req.header("nomba-sig-value") ? `${req.header("nomba-sig-value")!.slice(0, 12)}…` : "(absent)",
+    "| nomba-timestamp:", timestamp ?? "(absent)",
+    "| nomba-signature-algorithm:", req.header("nomba-signature-algorithm") ?? "(absent)",
+    "| nomba-signature-version:", req.header("nomba-signature-version") ?? "(absent)",
+  );
+
+  const sigVerified = verifyWebhookSignatureWithTimestamp(rawBody, signature, timestamp);
+
+  if (!sigVerified) {
+    // On failure log the full signature and a preview of the body so we can
+    // compute the expected hash offline and diagnose mismatches.
+    console.error("[nomba-webhook] signature FAILED",
+      "| signature:", signature || "(absent)",
+      "| timestamp:", timestamp ?? "(absent)",
+      "| body-preview:", rawBody.toString("utf8").slice(0, 300),
+    );
     res.status(401).json({ error: "Invalid webhook signature" });
     return;
   }
+
+  console.log("[nomba-webhook] signature OK");
 
   let payload: any;
   try {
@@ -165,6 +189,12 @@ export async function handleNombaWebhook(req: Request, res: Response) {
     res.status(400).json({ error: "Missing webhook event type" });
     return;
   }
+
+  console.log("[nomba-webhook] event_type:", eventType,
+    "| requestId:", payload.requestId ?? "(absent)",
+    "| transactionId:", payload.data?.transaction?.transactionId ?? "(absent)",
+    "| amount:", payload.data?.transaction?.transactionAmount ?? "(absent)",
+  );
 
   switch (eventType) {
     // ── Payment success (checkout order OR virtual account transfer) ──────────

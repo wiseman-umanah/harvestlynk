@@ -642,33 +642,35 @@ export async function refreshWalletBalance(req: AuthRequest, res: Response) {
 
   console.log(`[wallet-refresh] fetched ${nombaTransactions.length} txs from Nomba for account ${virtualAccount.nombaAccountId}`);
   if (nombaTransactions.length > 0) {
-    // Log first tx so we can verify field names in Railway.
     console.log("[wallet-refresh] sample tx:", JSON.stringify(nombaTransactions[0]).slice(0, 400));
   }
 
-  // Filter to successful CREDIT transactions directed at this specific VA only.
-  // Nomba's /v1/transactions/accounts response uses:
-  //   entryType:               "CREDIT" | "DEBIT"
-  //   status:                  "SUCCESS" | "PAYMENT_FAILED" | ...
-  //   virtualAccountReference: the accountRef of the VA that received funds
+  // Filter to successful VA-credit transactions directed at this specific VA.
   //
-  // IMPORTANT: this endpoint returns transactions for the whole parent account,
-  // not just this VA. We MUST match virtualAccountReference exactly so we never
-  // credit funds that belong to a different virtual account or a different app.
+  // The /v1/transactions/accounts endpoint returns ALL parent-account transactions
+  // (card, checkout, transfers, VA credits). The shape observed in production:
+  //   type:                   "vact_transfer"  — VA inflow
+  //   status:                 "SUCCESS"
+  //   aliasAccountReference:  the accountRef of the virtual account that received funds
+  //                           (same value we store in virtualAccounts.accountRef)
+  //
+  // We match on BOTH type and aliasAccountReference so we never credit a transfer
+  // that belongs to a different VA or a different application on this parent account.
   const VA_REF = virtualAccount.accountRef;
   const inflowTxs = nombaTransactions.filter((tx) => {
-    const entryType = String(tx["entryType"] ?? tx["type"] ?? tx["transactionType"] ?? "").toUpperCase();
-    const status    = String(tx["status"] ?? tx["transactionStatus"] ?? "").toUpperCase();
-    const vaRef     = String(tx["virtualAccountReference"] ?? "");
+    const txType  = String(tx["type"] ?? "").toLowerCase();
+    const status  = String(tx["status"] ?? tx["transactionStatus"] ?? "").toUpperCase();
+    // aliasAccountReference identifies which virtual account received the funds
+    const vaRef   = String(tx["aliasAccountReference"] ?? tx["virtualAccountReference"] ?? "");
 
-    return (
-      entryType === "CREDIT" &&
-      (status === "SUCCESS" || status === "SUCCESSFUL" || status === "COMPLETED" || status === "00") &&
-      vaRef === VA_REF   // must belong to this exact virtual account
-    );
+    const isVaCredit = txType === "vact_transfer";
+    const isSuccess  = status === "SUCCESS" || status === "SUCCESSFUL" || status === "COMPLETED";
+    const isOurVa    = vaRef === VA_REF;
+
+    return isVaCredit && isSuccess && isOurVa;
   });
 
-  console.log(`[wallet-refresh] VA_REF="${VA_REF}" → ${inflowTxs.length} matching inflow txs after filter`);
+  console.log(`[wallet-refresh] VA_REF="${VA_REF}" → ${inflowTxs.length} matching vact_transfer txs after filter`);
 
   if (inflowTxs.length === 0) {
     // Nothing to sync — just return current balance.

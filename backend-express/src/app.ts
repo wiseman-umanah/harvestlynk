@@ -16,9 +16,20 @@ if (!isTest) {
 }
 
 app.use(corsMiddleware);
-app.use(nombaWebhookPath, express.raw({ type: "*/*" }));
+
+// Body parsing — the webhook path must receive the raw Buffer so our HMAC
+// verification works. All other routes get JSON. The raw parser is registered
+// FIRST (no path guard) with a custom `type` function so it ONLY activates for
+// the webhook; the JSON parser then runs for everything else.
+app.use(express.raw({
+  // express.raw's type callback receives a raw IncomingMessage — use req.url.
+  // req.url at the app level is the full path e.g. "/api/v1/payments/nomba-webhook".
+  type: (_req) => (_req.url === nombaWebhookPath || _req.url?.split("?")[0] === nombaWebhookPath),
+  limit: "1mb",
+}));
 app.use((req, res, next) => {
-  if (req.path === nombaWebhookPath) {
+  if (Buffer.isBuffer(req.body)) {
+    // Already parsed as raw Buffer (webhook path) — skip JSON parsing.
     next();
     return;
   }
