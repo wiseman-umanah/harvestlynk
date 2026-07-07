@@ -414,7 +414,7 @@ export default function Wallet() {
               }
             </motion.button>
             <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1">
-              <i className="ri-shield-check-line" /> Encrypted by NIBSS Instant Payment Gateway
+              <i className="ri-shield-check-line" /> Encrypted by Nomba Instant Payment Gateway
             </p>
           </div>
         </motion.div>

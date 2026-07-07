@@ -162,7 +162,7 @@ export default function BuyerProfile() {
               </span>
             </div>
             <p className="text-gray-400 text-sm mt-1">{location} · Member since {memberSince}</p>
-            <div className="flex gap-4 mt-3 text-sm text-gray-500">
+            <div className="flex gap-4 mt-3 text-sm text-gray-500 md:flex-col">
               <span className="flex items-center gap-1.5">
                 <i className="ri-mail-line text-gray-400" /> {email}
               </span>
