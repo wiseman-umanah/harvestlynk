@@ -1,6 +1,6 @@
 # HarvestLynk
 
-HarvestLynk is an agriculture marketplace platform that connects Nigerian farmers directly with buyers. It provides a produce listing and ordering system, an escrow-style wallet with Nomba payment integration, real-time WebSocket notifications, farmer identity verification, and an AI-powered crop disease classifier.
+HarvestLynk is a full-stack agriculture marketplace platform connecting Nigerian farmers directly with buyers. It provides produce listing and ordering, private in-app messaging with price offers, an escrow-style wallet with Nomba payment integration, buyer virtual bank accounts, real-time WebSocket notifications, multi-layer farmer identity verification, and an AI-powered crop disease classifier.
 
 ---
 
@@ -21,7 +21,7 @@ ai_crop_handler/   FastAPI crop disease image classifier (Python / TensorFlow)
 
 ### `backend-express/` — REST API & WebSocket Server
 
-The core backend, written in TypeScript with Express 5. All API routes are mounted at `/api/v1`. Authentication is Supabase-based with Bearer tokens. Money values are stored as integers in **kobo** (smallest NGN unit) throughout the database.
+The core backend, written in TypeScript with Express 5 and ESM modules. All API routes are mounted at `/api/v1`. Authentication is Supabase-based with Bearer tokens. Money values are stored as integers in **kobo** (smallest NGN unit) throughout the database.
 
 See [`backend-express/README.md`](./backend-express/README.md) for setup, environment variables, API reference, and test instructions.
 
@@ -103,7 +103,7 @@ The dashboard proxies all `/api/v1/*` calls to the backend at `BACKEND_URL` (def
 |---|---|
 | API server | Express 5, TypeScript (ESM), Drizzle ORM, PostgreSQL |
 | Auth | Supabase Auth (email + Google OAuth) |
-| Payments | Nomba (checkout, virtual accounts, payouts) |
+| Payments | Nomba (checkout, virtual accounts, payouts, webhooks) |
 | File uploads | Cloudinary |
 | Real-time | Native WebSocket (`ws`) |
 | Dashboard | Next.js 16, React 19, Tailwind CSS 4, Framer Motion |
@@ -120,6 +120,7 @@ The dashboard proxies all `/api/v1/*` calls to the backend at `BACKEND_URL` (def
 - **API prefix:** all routes are versioned under `/api/v1/`.
 - **Database:** PostgreSQL via Drizzle ORM. Run `pnpm db:migrate` after pulling new migrations.
 - **Tests:** backend tests truncate all tables before each test and require a real PostgreSQL instance. Do not run them against a production database.
+- **Chat messages:** automatically deleted after 3 days server-side via a cleanup job.
 
 ---
 
@@ -128,15 +129,35 @@ The dashboard proxies all `/api/v1/*` calls to the backend at `BACKEND_URL` (def
 See each subdirectory's README or `.env.example` file for the full variable list. The minimum set to get the backend running:
 
 ```
-DATABASE_URL        PostgreSQL connection string
-SUPABASE_URL        Your Supabase project URL
+DATABASE_URL                 PostgreSQL connection string
+SUPABASE_URL                 Your Supabase project URL
 SUPABASE_SERVICE_ROLE_KEY
-JWT_SECRET          Secret for local token signing
+JWT_SECRET                   Secret for local token signing
 NOMBA_CLIENT_ID
 NOMBA_CLIENT_SECRET
 NOMBA_PARENT_ACCOUNT_ID
+NOMBA_SUB_ACCOUNT_ID
 NOMBA_WEBHOOK_SECRET
+NOMBA_ENV                    sandbox | production
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
+SMTP_HOST
+SMTP_PORT
+SMTP_USER
+SMTP_PASS
+SMTP_FROM
 ```
+
+---
+
+## Features at a Glance
+
+- **Marketplace** — farmer produce listings with images, categories, pricing, and quantity; buyer browse and filter.
+- **Orders & Escrow** — full order lifecycle from placement to delivery confirmation; funds held in farmer `pendingBalance` until delivery is confirmed.
+- **Payments** — Nomba-hosted checkout for buyers; virtual NGN bank accounts for wallet top-ups; farmer withdrawals via bank transfer.
+- **Messaging** — per-listing conversations between buyers and farmers; farmers can send structured private price offers with expiry countdown; buyers can accept and order directly from chat.
+- **Wallet** — available and pending balance, immutable ledger, transaction history.
+- **Verification** — liveness check, NIN upload, farm ownership document upload; trust score and rating system.
+- **Notifications** — real-time WebSocket push + persisted notification history.
+- **AI Crop Doctor** — TensorFlow crop disease classifier with treatment and prevention advice.

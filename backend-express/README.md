@@ -1,6 +1,6 @@
 # backend-express
 
-Express 5 REST API and WebSocket server for HarvestLynk. Written in TypeScript with ESM modules. Handles authentication (via Supabase), marketplace listings, orders with escrow, wallet and payouts (via Nomba), virtual accounts, real-time notifications over WebSocket, and crop scan persistence.
+Express 5 REST API and WebSocket server for HarvestLynk. Written in TypeScript with ESM modules. Handles authentication (via Supabase), marketplace listings, orders with escrow, wallet and payouts (via Nomba), buyer virtual bank accounts, private in-app messaging with price offers, real-time notifications over WebSocket, and crop scan persistence.
 
 ---
 
@@ -10,7 +10,7 @@ Express 5 REST API and WebSocket server for HarvestLynk. Written in TypeScript w
 - pnpm 9+
 - PostgreSQL 15+
 - A [Supabase](https://supabase.com) project (for Auth)
-- A [Nomba](https://nomba.com) account (for payments)
+- A [Nomba](https://nomba.com) account (for payments and virtual accounts)
 - A [Cloudinary](https://cloudinary.com) account (for file uploads)
 
 ---
@@ -45,8 +45,8 @@ pnpm dev                # starts on http://localhost:4000
 | `NOMBA_CLIENT_ID` | Nomba OAuth client ID |
 | `NOMBA_CLIENT_SECRET` | Nomba OAuth client secret |
 | `NOMBA_PARENT_ACCOUNT_ID` | Nomba parent account ID |
-| `NOMBA_SUB_ACCOUNT_ID` | Nomba sub-account ID (optional) |
-| `NOMBA_WEBHOOK_SECRET` | Secret used to verify Nomba webhook signatures |
+| `NOMBA_SUB_ACCOUNT_ID` | Nomba sub-account ID (optional, for scoped payloads) |
+| `NOMBA_WEBHOOK_SECRET` | Secret used to verify Nomba webhook HMAC signatures |
 | `NOMBA_ENV` | `sandbox` or `production` (default `sandbox`) |
 | `SMTP_HOST` | SMTP host for transactional email |
 | `SMTP_PORT` | SMTP port |
@@ -83,7 +83,7 @@ pnpm db:studio    # open Drizzle Studio in browser
 
 | Prefix | Resource |
 |---|---|
-| `/auth` | Signup, login, Google OAuth, email verification, password reset, refresh, logout |
+| `/auth` | Signup, login, Google OAuth, email verification, password reset, refresh, logout, session listing/revocation |
 | `/users` | User profiles, current user, stats, verification uploads, liveness, ratings |
 | `/marketplace` | Public listing browse/detail; farmer listing CRUD, image upload |
 | `/orders` | Create order, buyer/farmer order lists, status transitions, delivery confirmation, cancellation, dispute, rating |
@@ -91,6 +91,7 @@ pnpm db:studio    # open Drizzle Studio in browser
 | `/wallet` | Balance, transactions, ledger, bank list, bank verification, withdrawal/payout |
 | `/virtual-accounts` | Buyer virtual account creation, retrieval, suspension |
 | `/notifications` | List, unread count, mark read, mark all read |
+| `/chat` | Conversations, messages, private price offers, buy-via-chat |
 | `/scans` | Crop scan result persistence and history |
 
 ### Authentication
@@ -116,7 +117,7 @@ Never store naira floats in the database. Convert only at the API response bound
 
 ```
 pending_payment → payment_confirmed → processing → ready_for_pickup → completed
-                                   ↘ cancellation_requested → cancelled
+                                    ↘ cancellation_requested → cancelled
 pending_payment → cancelled
 payment_confirmed → refund_pending → refunded
 any paid state → disputed
@@ -139,6 +140,13 @@ WebSocket endpoint is `/ws`. The client passes the Supabase access token as `?to
 - **Payouts:** farmers withdraw via `POST /wallet/withdraw`. The transfer is initiated via Nomba and completed/failed from the webhook.
 - **Idempotency:** the webhook handler checks for an existing `payments` record with the same `nombaReference` before crediting escrow.
 
+### Messaging & Offers (Chat)
+
+- Conversations are scoped per buyer–listing pair (one conversation per buyer per listing).
+- Messages support two types: `text` and `offer`. Offer messages carry structured fields: `offer_price_kobo`, `offer_quantity`, `offer_unit`, `offer_expires_at`.
+- The `POST /chat/:conversationId/buy` endpoint allows a buyer to accept a price offer and create an order in a single request, with optional wallet or Nomba checkout payment.
+- Messages are automatically purged after 3 days by a scheduled cleanup job (`src/utils/messageCleanup.ts`).
+
 ---
 
 ## Database
@@ -158,6 +166,8 @@ Managed with [Drizzle ORM](https://orm.drizzle.team). Schema lives in `src/db/sc
 | `payments` | Nomba/wallet payment records per order |
 | `payouts` | Farmer payout/transfer records |
 | `virtual_accounts` | Buyer Nomba virtual bank accounts |
+| `conversations` | Per-buyer-per-listing chat threads |
+| `messages` | Individual chat messages (text or offer type) |
 | `notifications` | Persisted notification records |
 | `scans` | Crop disease scan results uploaded by farmers |
 
@@ -226,6 +236,16 @@ src/
   app.ts                   Express app configuration
   index.ts                 HTTP + WebSocket server entrypoint
   controllers/             Route handler functions
+    auth.controller.ts
+    chat.controller.ts
+    marketplace.controller.ts
+    notifications.controller.ts
+    orders.controller.ts
+    payments.controller.ts
+    scans.controller.ts
+    users.controller.ts
+    virtual-accounts.controller.ts
+    wallet.controller.ts
   db/
     index.ts               Drizzle client
     schema.ts              Full database schema
@@ -236,8 +256,10 @@ src/
   tests/                   Vitest test files + setup
   utils/
     jwt.ts                 signAccessToken, verifyAccessToken
+    messageCleanup.ts      Chat message 3-day retention cleanup job
     nomba.ts               Nomba API client (checkout, transfer, virtual accounts)
     notifications.ts       createNotification helper
+    orderRef.ts            Unique order reference generator
     supabase.ts            getSupabaseAdmin() wrapper
     wsServer.ts            WebSocket server and pushToUser()
 drizzle/                   SQL migration files

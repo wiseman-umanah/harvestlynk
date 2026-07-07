@@ -1,6 +1,6 @@
 # dashboard
 
-Next.js 16 farmer and buyer dashboard for HarvestLynk. Provides authenticated interfaces for listing management, order tracking, wallet operations, virtual account setup, notifications, and AI crop disease scanning.
+Next.js 16 farmer and buyer dashboard for HarvestLynk. Provides authenticated interfaces for listing management, order tracking, wallet operations, virtual account setup, in-app messaging with price offers, real-time notifications, and AI crop disease scanning.
 
 ---
 
@@ -81,6 +81,17 @@ This handler proxies to `BACKEND_URL` server-side, forwarding only the `authoriz
 
 `src/hooks/useNotifications.ts` opens a WebSocket connection to `NEXT_PUBLIC_BACKEND_URL/ws?token=<accessToken>` and dispatches incoming notification events to the notification context.
 
+### Messaging & Chat
+
+`src/hooks/useChat.ts` manages the chat state for a single conversation:
+
+- Polls for new messages every 5 seconds when the conversation is open.
+- Sends text messages and structured price offer messages via the `/chat` API.
+- Tracks unread conversation count via `useChatUnread` for the sidebar badge.
+
+`src/components/MessagesListPage.tsx` — shared list of conversations (farmer and buyer).
+`src/components/ConversationDetailPage.tsx` — individual chat thread with message bubbles, offer cards, expiry countdown, and the send-offer panel (farmer only).
+
 ---
 
 ## Pages
@@ -103,6 +114,8 @@ This handler proxies to `BACKEND_URL` server-side, forwarding only the `authoriz
 | `/` | Overview / stats |
 | `/farm` | Farm profile and listing management |
 | `/marketplace` | Browse public marketplace |
+| `/messages` | Conversations list |
+| `/messages/[id]` | Individual conversation with buyer |
 | `/orders` | Received orders, status management |
 | `/wallet` | Wallet balance, transactions, withdrawals |
 | `/profile` | Profile editing, verification uploads |
@@ -113,8 +126,9 @@ This handler proxies to `BACKEND_URL` server-side, forwarding only the `authoriz
 | Route | Description |
 |---|---|
 | `/` | Overview / stats |
-| `/farm` | Browse farmers |
 | `/marketplace` | Browse listings, add to cart |
+| `/messages` | Conversations list |
+| `/messages/[id]` | Individual conversation with farmer; accept price offers |
 | `/checkout` | Order checkout via Nomba payment |
 | `/orders` | Order history and tracking |
 | `/wallet` | Wallet balance, virtual account, transactions |
@@ -128,8 +142,8 @@ This handler proxies to `BACKEND_URL` server-side, forwarding only the `authoriz
 
 | Technology | Version |
 |---|---|
-| Next.js | 16.2.6 |
-| React | 19.2.4 |
+| Next.js | 16 |
+| React | 19 |
 | TypeScript | 5 |
 | Tailwind CSS | 4 |
 | Framer Motion | 12 |

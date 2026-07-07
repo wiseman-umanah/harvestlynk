@@ -111,9 +111,9 @@ The farmer AI Crop Doctor page (`dashboard/src/app/dashboard/farmer/ai-crop-doct
 | Technology | Version |
 |---|---|
 | Python | 3.13+ |
-| FastAPI | 0.136+ |
-| TensorFlow (CPU) | 2.21+ |
-| Pillow | 12+ |
-| uvicorn | 0.46+ |
-| pydantic | 2.13+ |
+| FastAPI | latest |
+| TensorFlow (CPU) | 2.x (CPU build) |
+| Pillow | latest |
+| uvicorn | latest |
+| pydantic | 2.x |
 | loguru | 0.7+ |

@@ -16,8 +16,8 @@ Next.js 16 public marketing site for HarvestLynk. A static-first site presenting
 ```bash
 cd landing-page
 pnpm install
-cp .env.local .env.local   # or set NEXT_PUBLIC_APP_URL directly
-pnpm dev                    # http://localhost:3001
+cp .env.local.example .env.local   # or set NEXT_PUBLIC_APP_URL directly
+pnpm dev                            # http://localhost:3001
 ```
 
 ---
@@ -62,8 +62,8 @@ pnpm lint    # eslint
 
 | Technology | Version |
 |---|---|
-| Next.js | 16.2.6 |
-| React | 19.2.4 |
+| Next.js | 16 |
+| React | 19 |
 | TypeScript | 5 |
 | Tailwind CSS | 4 |
 | Framer Motion | 12 |
