@@ -141,6 +141,9 @@ export interface SignupData {
 
 export interface UpdateProfileData {
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
   bio?: string;
   locationState?: string;
   locationLga?: string;

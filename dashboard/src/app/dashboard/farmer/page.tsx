@@ -43,6 +43,12 @@ export default function FarmerDashboard() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [orders, setOrders] = useState<FarmerOrder[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [unverified, setUnverified] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnverified(localStorage.getItem("hl_farmer_verified") === "false");
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoadingData(true);
@@ -76,6 +82,32 @@ export default function FarmerDashboard() {
 
   return (
     <motion.div className="space-y-6" variants={staggerContainer} initial="hidden" animate="show">
+      {/* Unverified banner */}
+      {unverified && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <i className="ri-shield-line text-amber-600 text-lg" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-800">⚠️ Account verification pending</p>
+              <p className="text-xs text-amber-600 mt-0.5">Complete identity &amp; farm verification to unlock full marketplace access and faster payouts.</p>
+            </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => router.push("/onboard/farmer")}
+            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors whitespace-nowrap self-start sm:self-auto"
+          >
+            Complete Verification
+          </motion.button>
+        </motion.div>
+      )}
+
       {/* Header */}
       <motion.div variants={fadeUp}>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">

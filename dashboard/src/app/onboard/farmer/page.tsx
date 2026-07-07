@@ -1,11 +1,13 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { walletApi, usersApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── Step bar ────────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ["Basic Info", "Identity Verification", "Farm Verification", "Complete"];
+const STEP_LABELS = ["Bank Account", "Identity Verification", "Farm Verification", "Complete"];
 
 function StepBar({ step }: { step: number }) {
   return (
@@ -37,6 +39,172 @@ function StepBar({ step }: { step: number }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 1: Bank Account ────────────────────────────────────────────────────
+
+const DEFAULT_BANKS = [
+  { code: "058", name: "Guaranty Trust Bank (GTB)" },
+  { code: "044", name: "Access Bank" },
+  { code: "011", name: "First Bank of Nigeria" },
+  { code: "057", name: "Zenith Bank" },
+  { code: "033", name: "United Bank for Africa (UBA)" },
+  { code: "035", name: "Wema Bank" },
+  { code: "221", name: "Stanbic IBTC Bank" },
+  { code: "050", name: "Ecobank Nigeria" },
+  { code: "070", name: "Fidelity Bank" },
+  { code: "030", name: "Heritage Bank" },
+];
+
+function StepBankAccount({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => void }) {
+  const [banks, setBanks] = useState(DEFAULT_BANKS);
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    walletApi.getBanks()
+      .then((res) => setBanks(res.banks))
+      .catch(() => {}); // keep defaults on failure
+  }, []);
+
+  async function handleVerify() {
+    if (!bankCode) { setVerifyError("Please select a bank."); return; }
+    if (accountNumber.length !== 10) { setVerifyError("Account number must be 10 digits."); return; }
+    setVerifying(true);
+    setVerifyError("");
+    setAccountName("");
+    try {
+      const res = await walletApi.verifyBank(bankCode, accountNumber);
+      if (res.success) {
+        setAccountName(res.data.account_name);
+      } else {
+        setVerifyError(res.message ?? "Verification failed.");
+      }
+    } catch (e) {
+      setVerifyError(e instanceof Error ? e.message : "Verification failed.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleSaveAndContinue() {
+    if (!accountName) { setSaveError("Please verify your bank account first."); return; }
+    const bankName = banks.find((b) => b.code === bankCode)?.name ?? bankCode;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await usersApi.updateUser({
+        bankName,
+        bankAccountNumber: accountNumber,
+        bankAccountName: accountName,
+      });
+      onContinue();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to save bank details.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Link Your Bank Account</h2>
+        <p className="text-gray-500 text-sm mt-2 leading-relaxed">
+          Link your bank account so we can process your withdrawals instantly when buyers confirm delivery.
+          You can skip this for now and add it from your wallet settings later.
+        </p>
+      </div>
+
+      <div className="border border-gray-200 rounded-2xl p-6 space-y-5">
+        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+          <i className="ri-bank-line text-blue-600 text-2xl" />
+        </div>
+
+        {/* Bank */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Bank</label>
+          <select
+            value={bankCode}
+            onChange={(e) => { setBankCode(e.target.value); setAccountName(""); setVerifyError(""); }}
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B] bg-white"
+          >
+            <option value="">Select your bank…</option>
+            {banks.map((b, i) => (
+              <option key={`${b.code}-${i}`} value={b.code}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Account number */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Account Number</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              maxLength={10}
+              placeholder="10-digit NUBAN"
+              value={accountNumber}
+              onChange={(e) => {
+                setAccountNumber(e.target.value.replace(/\D/g, ""));
+                setAccountName("");
+                setVerifyError("");
+              }}
+              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B] bg-gray-50"
+            />
+            <button
+              onClick={handleVerify}
+              disabled={verifying || accountNumber.length !== 10 || !bankCode}
+              className="px-4 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              {verifying ? <i className="ri-loader-4-line animate-spin" /> : "Verify"}
+            </button>
+          </div>
+          {verifyError && <p className="text-red-500 text-xs mt-1">{verifyError}</p>}
+        </div>
+
+        {/* Verified name */}
+        {accountName && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-4 py-3 bg-green-50 rounded-xl border border-green-100"
+          >
+            <i className="ri-checkbox-circle-line text-[#0D631B]" />
+            <div>
+              <p className="text-xs text-gray-500">Account Holder</p>
+              <p className="text-sm font-bold text-gray-900">{accountName}</p>
+            </div>
+          </motion.div>
+        )}
+
+        {saveError && <p className="text-red-500 text-xs p-2.5 bg-red-50 rounded-xl">{saveError}</p>}
+      </div>
+
+      <div className="bg-blue-50 rounded-xl px-4 py-3 flex items-start gap-2 text-xs text-blue-700">
+        <i className="ri-shield-check-line mt-0.5 flex-shrink-0" />
+        <span>Your bank details are encrypted and only used for secure payouts. You can always update them in your wallet settings.</span>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+        <button onClick={onSkip} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+          Skip for now
+        </button>
+        <button
+          onClick={handleSaveAndContinue}
+          disabled={saving || !accountName}
+          className="px-8 py-3 rounded-xl bg-[#0D631B] text-white font-semibold text-sm hover:bg-[#0a4f15] transition-colors disabled:opacity-50 flex items-center gap-2"
+        >
+          {saving ? <><i className="ri-loader-4-line animate-spin" /> Saving…</> : <>Save & Continue <i className="ri-arrow-right-line" /></>}
+        </button>
       </div>
     </div>
   );
@@ -159,7 +327,7 @@ function StepFarm({ onContinue, onBack }: { onContinue: () => void; onBack: () =
       if (f.size > 10 * 1024 * 1024) { setDocError(`"${f.name}" exceeds 10MB limit.`); return; }
       const allowed = ["application/pdf", "image/jpeg", "image/png"];
       if (!allowed.includes(f.type)) { setDocError(`"${f.name}" is not a PDF, JPG, or PNG.`); return; }
-      if (docs.find((d) => d.name === f.name)) return; // no duplicates
+      if (docs.find((d) => d.name === f.name)) return;
       const kb = f.size / 1024;
       newDocs.push({ name: f.name, size: kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} KB` });
     });
@@ -170,12 +338,11 @@ function StepFarm({ onContinue, onBack }: { onContinue: () => void; onBack: () =
     <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl mx-auto w-full space-y-6">
       {/* Farm Location */}
       <div>
-        <h3 className="text-sm font-bold text-gray-800 mb-2">Farm Location & Boundary</h3>
+        <h3 className="text-sm font-bold text-gray-800 mb-2">Farm Location &amp; Boundary</h3>
         <div
           onClick={() => setPinned(true)}
           className="relative h-44 rounded-2xl overflow-hidden cursor-pointer border border-gray-200 bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center"
         >
-          {/* Simulated satellite-style background */}
           <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 opacity-30 pointer-events-none">
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} className={`border border-green-600 ${i % 3 === 0 ? "bg-green-500" : i % 2 === 0 ? "bg-green-400" : "bg-green-300"}`} />
@@ -254,7 +421,6 @@ function StepFarm({ onContinue, onBack }: { onContinue: () => void; onBack: () =
           onChange={(e) => handleDocs(e.target.files)}
         />
 
-        {/* Drop zone */}
         <div
           onClick={() => docRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
@@ -272,7 +438,6 @@ function StepFarm({ onContinue, onBack }: { onContinue: () => void; onBack: () =
           </p>
         )}
 
-        {/* Uploaded file chips */}
         {docs.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
@@ -301,7 +466,7 @@ function StepFarm({ onContinue, onBack }: { onContinue: () => void; onBack: () =
 
 // ─── Step 4: Complete ────────────────────────────────────────────────────────
 
-function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void; onListProduct: () => void }) {
+function StepComplete({ skipped, onDashboard, onListProduct }: { skipped: boolean; onDashboard: () => void; onListProduct: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -309,7 +474,6 @@ function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void;
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="flex-1 flex flex-col items-center justify-center text-center px-6 py-10"
     >
-      {/* Icon cluster */}
       <div className="relative mb-8">
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
@@ -317,8 +481,8 @@ function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void;
           transition={{ delay: 0.15, type: "spring", stiffness: 200 }}
           className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center"
         >
-          <div className="w-16 h-16 rounded-full bg-[#0D631B] flex items-center justify-center">
-            <i className="ri-check-line text-white text-3xl" />
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center ${skipped ? "bg-amber-500" : "bg-[#0D631B]"}`}>
+            <i className={`text-white text-3xl ${skipped ? "ri-time-line" : "ri-check-line"}`} />
           </div>
         </motion.div>
         <motion.div
@@ -337,16 +501,31 @@ function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void;
         transition={{ delay: 0.25 }}
         className="text-2xl md:text-3xl font-bold text-gray-900 mb-3"
       >
-        You&apos;re All Set!
+        {skipped ? "Setup Skipped" : "You're All Set!"}
       </motion.h2>
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.35 }}
-        className="text-gray-500 text-sm max-w-sm leading-relaxed mb-8"
+        className="text-gray-500 text-sm max-w-sm leading-relaxed mb-4"
       >
-        Your farm profile is now being reviewed by our AI verification team. Most verifications are completed within 24 hours.
+        {skipped
+          ? "Your account is marked as unverified. You can complete verification anytime from your profile or notifications page to unlock full access."
+          : "Your farm profile is now being reviewed by our AI verification team. Most verifications are completed within 24 hours."}
       </motion.p>
+
+      {skipped && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mb-8 flex items-center gap-2 px-4 py-2.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold"
+        >
+          <i className="ri-error-warning-line" /> Account status: <span className="font-bold">Unverified</span>
+        </motion.div>
+      )}
+
+      {!skipped && <div className="mb-8" />}
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -362,14 +541,16 @@ function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void;
         >
           Go to Dashboard <i className="ri-arrow-right-line" />
         </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={onListProduct}
-          className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors"
-        >
-          List Your First Product
-        </motion.button>
+        {!skipped && (
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onListProduct}
+            className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors"
+          >
+            List Your First Product
+          </motion.button>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -379,14 +560,16 @@ function StepComplete({ onDashboard, onListProduct }: { onDashboard: () => void;
 
 export default function FarmerOnboard() {
   const router = useRouter();
-  const [step, setStep] = useState(2);
+  const { refreshUser } = useAuth();
+  const [step, setStep] = useState(1);
+  const [skipped, setSkipped] = useState(false);
 
   function handleSkip() {
-    // Mark as unverified so topbar badge shows
     if (typeof window !== "undefined") {
       localStorage.setItem("hl_farmer_verified", "false");
     }
-    router.push("/dashboard/farmer");
+    setSkipped(true);
+    setStep(4);
   }
 
   function handleContinue() {
@@ -394,18 +577,19 @@ export default function FarmerOnboard() {
   }
 
   function handleBack() {
-    if (step > 2) setStep((s) => s - 1);
+    if (step > 1) setStep((s) => s - 1);
   }
 
-  function handleDashboard() {
-    if (typeof window !== "undefined") {
+  async function handleDashboard() {
+    if (!skipped && typeof window !== "undefined") {
       localStorage.setItem("hl_farmer_verified", "true");
     }
+    await refreshUser().catch(() => {});
     router.push("/dashboard/farmer");
   }
 
   function handleListProduct() {
-    if (typeof window !== "undefined") {
+    if (!skipped && typeof window !== "undefined") {
       localStorage.setItem("hl_farmer_verified", "true");
     }
     router.push("/dashboard/farmer/farm?list=true");
@@ -424,14 +608,15 @@ export default function FarmerOnboard() {
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           className="flex-1 flex flex-col"
         >
+          {step === 1 && <StepBankAccount onContinue={handleContinue} onSkip={() => { setStep(2); }} />}
           {step === 2 && <StepIdentity onContinue={handleContinue} onSkip={handleSkip} />}
           {step === 3 && <StepFarm onContinue={handleContinue} onBack={handleBack} />}
-          {step === 4 && <StepComplete onDashboard={handleDashboard} onListProduct={handleListProduct} />}
+          {step === 4 && <StepComplete skipped={skipped} onDashboard={handleDashboard} onListProduct={handleListProduct} />}
         </motion.div>
       </AnimatePresence>
 
       {/* Bottom bar */}
-      {step < 4 && (
+      {step < 4 && step !== 1 && (
         <div className="border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between gap-4">
           {step === 2 ? (
             <button onClick={handleSkip} className="text-sm text-gray-500 hover:text-gray-800 transition-colors">

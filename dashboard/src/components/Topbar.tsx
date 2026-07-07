@@ -65,21 +65,19 @@ export default function Topbar({ onMenuToggle }: Props) {
 
       {/* Right: icons + profile */}
       <div className="flex items-center gap-2 md:gap-3 shrink-0">
-        {/* Cart icon — buyer only */}
-        {isBuyer && (
-          <Link
-            href="/dashboard/buyer/checkout"
-            className="relative text-gray-500 hover:text-gray-800 transition-colors"
-            aria-label="Cart"
-          >
-            <i className="ri-shopping-bag-3-line text-xl" />
-            {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0D631B] text-white text-[9px] font-bold flex items-center justify-center">
-                {totalItems > 9 ? "9+" : totalItems}
-              </span>
-            )}
-          </Link>
-        )}
+        {/* Cart icon — buyer AND farmer (farmer marketplace) */}
+        <Link
+          href={isBuyer ? "/dashboard/buyer/checkout" : "/dashboard/buyer/checkout"}
+          className="relative text-gray-500 hover:text-gray-800 transition-colors"
+          aria-label="Cart"
+        >
+          <i className="ri-shopping-bag-3-line text-xl" />
+          {totalItems > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0D631B] text-white text-[9px] font-bold flex items-center justify-center">
+              {totalItems > 9 ? "9+" : totalItems}
+            </span>
+          )}
+        </Link>
 
         {/* Bell */}
         <Link href={notificationsHref} className="relative text-gray-500 hover:text-gray-800 transition-colors">

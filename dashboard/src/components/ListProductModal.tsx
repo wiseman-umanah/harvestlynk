@@ -18,24 +18,28 @@ const UNITS = ["Bags", "kg", "Tonnes", "Crates", "Bunches", "Litres", "Pieces"];
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  /** When provided, the modal is in "edit" mode and pre-fills from this listing. */
+  editListing?: import("@/lib/api").Listing;
 }
 
-export default function ListProductModal({ onClose, onCreated }: Props) {
+export default function ListProductModal({ onClose, onCreated, editListing }: Props) {
   const photoRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(editListing?.images?.[0] ?? null);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // Form state
-  const [productName, setProductName] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [pricePerUnit, setPricePerUnit] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState(UNITS[0]);
-  const [locationState, setLocationState] = useState("");
-  const [locationLga, setLocationLga] = useState("");
-  const [description, setDescription] = useState("");
-  const [harvestDate, setHarvestDate] = useState("");
-  const [deliveryOptions, setDeliveryOptions] = useState<string[]>(["pickup"]);
+  // Form state — pre-fill from editListing if editing
+  const [productName, setProductName] = useState(editListing?.product_name ?? "");
+  const [category, setCategory] = useState(editListing?.category ?? CATEGORIES[0]);
+  const [pricePerUnit, setPricePerUnit] = useState(editListing ? String(editListing.price_per_unit) : "");
+  const [quantity, setQuantity] = useState(editListing ? String(parseFloat(editListing.quantity)) : "");
+  const [unit, setUnit] = useState(editListing?.unit ?? UNITS[0]);
+  const [locationState, setLocationState] = useState(editListing?.location_state ?? "");
+  const [locationLga, setLocationLga] = useState(editListing?.location_lga ?? "");
+  const [description, setDescription] = useState(editListing?.description ?? "");
+  const [harvestDate, setHarvestDate] = useState(editListing?.harvest_date ?? "");
+  const [deliveryOptions, setDeliveryOptions] = useState<string[]>(
+    editListing?.delivery_options ?? ["pickup"]
+  );
 
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
@@ -68,7 +72,7 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
 
     setLoading(true);
     try {
-      let images: string[] = [];
+      let images: string[] = editListing?.images ?? [];
       if (imageFile) {
         const url = await marketplaceApi.uploadImage(imageFile);
         images = [url];
@@ -89,7 +93,11 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
         status,
       };
 
-      await marketplaceApi.createListing(data);
+      if (editListing) {
+        await marketplaceApi.updateListing(editListing.listing_id, data);
+      } else {
+        await marketplaceApi.createListing(data);
+      }
       onCreated();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save listing. Try again.");
@@ -103,7 +111,7 @@ export default function ListProductModal({ onClose, onCreated }: Props) {
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-7 py-5 border-b border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900">List New Product</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{editListing ? "Edit Listing" : "List New Product"}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
             <i className="ri-close-line text-2xl" />
           </button>

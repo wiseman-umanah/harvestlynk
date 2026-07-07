@@ -26,7 +26,7 @@ function VerifyHandler() {
         if (accessToken && refreshToken) setTokens(accessToken, refreshToken);
         setStatus("success");
         setTimeout(() => {
-          router.replace(user.role === "farmer" ? "/dashboard/farmer" : "/dashboard/buyer");
+          router.replace(user.role === "farmer" ? "/onboard/farmer" : "/dashboard/buyer");
         }, 1500);
       })
       .catch((err: unknown) => {

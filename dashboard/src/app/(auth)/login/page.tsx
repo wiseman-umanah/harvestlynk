@@ -64,7 +64,11 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await loginWithGoogle(credentialResponse.credential);
-      const dest = user.role === "farmer" ? "/dashboard/farmer" : "/dashboard/buyer";
+      // For Google sign-in, check if the user is a farmer with no bank account set
+      // (first-time Google farmer login) — send them to onboarding
+      const dest = user.role === "farmer" && !user.bank_account_number
+        ? "/onboard/farmer"
+        : user.role === "farmer" ? "/dashboard/farmer" : "/dashboard/buyer";
       router.push(dest);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Google sign-in failed. Please try again.");
@@ -156,14 +160,15 @@ export default function Login() {
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
-            <div className="flex justify-center">
+            <div className="w-full overflow-hidden">
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => setFormError("Google sign-in failed. Please try again.")}
                 text="signin_with"
                 shape="pill"
                 theme="outline"
-                width="360"
+                useOneTap={false}
+                width="400"
               />
             </div>
           </div>

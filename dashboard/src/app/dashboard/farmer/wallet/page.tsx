@@ -136,8 +136,8 @@ export default function Wallet() {
 
   async function handleWithdraw() {
     const naira = parseFloat(amount);
-    if (!naira || naira < 1000) {
-      setWithdrawError("Minimum withdrawal is ₦1,000.");
+    if (!naira || naira < 100) {
+      setWithdrawError("Minimum withdrawal is ₦100.");
       return;
     }
     if (naira > availableNaira) {
@@ -383,7 +383,7 @@ export default function Wallet() {
               />
             </div>
             <div className="flex items-center justify-between text-xs text-gray-400 mb-5">
-              <span>Min: ₦1,000 | Max: {wallet ? formatNaira(wallet.available_balance) : "₦0.00"}</span>
+              <span>Min: ₦100 | Available: {wallet ? formatNaira(wallet.available_balance) : "₦0.00"}</span>
               <button
                 onClick={() => setAmount(availableNaira.toFixed(2))}
                 className="text-[#0D631B] font-medium hover:underline"
@@ -500,6 +500,89 @@ export default function Wallet() {
           </div>
         </motion.div>
       </div>
+
+      {/* Full Transaction History */}
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">Transaction History</h2>
+          <button
+            onClick={() => {
+              setTxLoading(true);
+              walletApi.getTransactions().then(setTransactions).catch(() => {}).finally(() => setTxLoading(false));
+            }}
+            className="text-xs text-gray-400 hover:text-[#0D631B] flex items-center gap-1 transition-colors"
+          >
+            <i className="ri-refresh-line" /> Refresh
+          </button>
+        </div>
+
+        {txLoading ? (
+          <div className="flex justify-center py-12">
+            <i className="ri-loader-4-line animate-spin text-[#0D631B] text-2xl" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-gray-400">
+            <i className="ri-file-list-3-line text-3xl mb-2" />
+            <p className="text-sm">No transactions yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px]">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-4 md:px-6 py-3">Date</th>
+                  <th className="text-left px-4 md:px-6 py-3">Description</th>
+                  <th className="text-left px-4 md:px-6 py-3">Type</th>
+                  <th className="text-left px-4 md:px-6 py-3">Amount</th>
+                  <th className="text-left px-4 md:px-6 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((t, i) => (
+                  <motion.tr
+                    key={t.transaction_id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 + i * 0.04 }}
+                    className="border-t border-gray-50 hover:bg-gray-50/50 transition-colors"
+                  >
+                    <td className="px-4 md:px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                      {new Date(t.created_at).toLocaleDateString("en-NG", {
+                        day: "2-digit", month: "short", year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-4 md:px-6 py-4">
+                      <p className="text-sm font-medium text-gray-900">
+                        {t.description ?? (t.reference_type
+                          ? `${t.reference_type.replace(/_/g, " ")} #${t.reference_id?.slice(0, 8)}`
+                          : "Transaction")}
+                      </p>
+                    </td>
+                    <td className={`px-4 md:px-6 py-4 text-sm font-semibold ${
+                      t.type === "credit" ? "text-[#0D631B]" : "text-red-500"
+                    }`}>
+                      {t.type === "credit" ? "Credit" : "Debit"}
+                    </td>
+                    <td className="px-4 md:px-6 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">
+                      {t.type === "debit" ? "−" : "+"}{formatNaira(t.amount)}
+                    </td>
+                    <td className="px-4 md:px-6 py-4">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                        t.status === "completed" ? "bg-green-100 text-[#0D631B]" :
+                        t.status === "pending"   ? "bg-amber-50 text-amber-600" :
+                                                   "bg-red-50 text-red-500"
+                      }`}>
+                        {t.status === "pending" && <i className="ri-time-line" />}
+                        {t.status === "completed" ? "Completed" : t.status === "pending" ? "Pending" : "Failed"}
+                      </span>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </motion.div>
     </motion.div>
   );
 }

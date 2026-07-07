@@ -9,6 +9,9 @@ import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const updateProfileSchema = z.object({
   fullName: z.string().min(2).trim().optional(),
+  firstName: z.string().min(1).trim().optional(),
+  lastName: z.string().min(1).trim().optional(),
+  phoneNumber: z.string().optional(),
   bio: z.string().max(500).optional(),
   locationState: z.string().optional(),
   locationLga: z.string().optional(),
@@ -58,6 +61,9 @@ export async function updateUser(req: AuthRequest, res: Response) {
     updates["firstName"] = first;
     updates["lastName"] = rest.join(" ") || "-";
   }
+  if (data.firstName) updates["firstName"] = data.firstName.trim();
+  if (data.lastName) updates["lastName"] = data.lastName.trim();
+  if (data.phoneNumber !== undefined) updates["phoneNumber"] = data.phoneNumber;
   if (data.bio !== undefined) updates["bio"] = data.bio;
   if (data.locationState !== undefined) updates["locationState"] = data.locationState;
   if (data.locationLga !== undefined) updates["locationLga"] = data.locationLga;

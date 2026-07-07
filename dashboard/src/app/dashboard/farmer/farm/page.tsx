@@ -35,6 +35,7 @@ function relativeDate(iso: string): string {
 function MyFarmInner() {
   const searchParams = useSearchParams();
   const [showModal, setShowModal] = useState(false);
+  const [editListing, setEditListing] = useState<Listing | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loadingListings, setLoadingListings] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -90,10 +91,11 @@ function MyFarmInner() {
 
   return (
     <motion.div className="space-y-6" variants={staggerContainer} initial="hidden" animate="show">
-      {showModal && (
+      {(showModal || editListing) && (
         <ListProductModal
-          onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); fetchListings(); }}
+          onClose={() => { setShowModal(false); setEditListing(null); }}
+          onCreated={() => { setShowModal(false); setEditListing(null); fetchListings(); }}
+          editListing={editListing ?? undefined}
         />
       )}
 
@@ -264,6 +266,12 @@ function MyFarmInner() {
                       <td className="px-4 md:px-6 py-4 text-gray-500">{relativeDate(row.created_at)}</td>
                       <td className="px-4 md:px-6 py-4">
                         <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setEditListing(row)}
+                            className="text-blue-600 font-medium text-sm hover:underline"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => handlePublish(row.listing_id)}
                             disabled={actionLoadingId === row.listing_id}

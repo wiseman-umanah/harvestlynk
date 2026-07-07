@@ -65,7 +65,7 @@ export default function FarmerSignup() {
     setLoading(true);
     try {
       await loginWithGoogle(credentialResponse.credential, "farmer");
-      router.push("/dashboard/farmer");
+      router.push("/onboard/farmer");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Google sign-up failed. Please try again.");
     } finally {
@@ -235,14 +235,15 @@ export default function FarmerSignup() {
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              <div className="flex justify-center">
+              <div className="w-full overflow-hidden">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => setFormError("Google sign-up failed. Please try again.")}
                   text="signup_with"
                   shape="pill"
                   theme="outline"
-                  width="360"
+                  useOneTap={false}
+                  width="400"
                 />
               </div>
             </div>

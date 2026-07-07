@@ -30,6 +30,12 @@ export function useNotifications() {
 
   useEffect(() => {
     queueMicrotask(() => { void fetchAll(); });
+
+    // Re-fetch when window gains focus so the topbar badge stays in sync
+    // after the user marks all as read on the notifications page
+    function onFocus() { void fetchAll(); }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [fetchAll]);
 
   // WebSocket connection for real-time notification push

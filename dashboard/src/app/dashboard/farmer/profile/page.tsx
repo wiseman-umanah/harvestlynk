@@ -52,9 +52,22 @@ export default function Profile() {
   const [pwSuccess, setPwSuccess] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
+  // Bank account link state
+  const [bankLinkOpen, setBankLinkOpen] = useState(false);
+  const [bankLinkBanks, setBankLinkBanks] = useState<{code:string;name:string}[]>([]);
+  const [bankLinkCode, setBankLinkCode] = useState("");
+  const [bankLinkAccNumber, setBankLinkAccNumber] = useState("");
+  const [bankLinkAccName, setBankLinkAccName] = useState("");
+  const [bankLinkVerifying, setBankLinkVerifying] = useState(false);
+  const [bankLinkVerifyError, setBankLinkVerifyError] = useState("");
+  const [bankLinkSaving, setBankLinkSaving] = useState(false);
+  const [bankLinkError, setBankLinkError] = useState("");
+
   // Edit profile state
   const [editOpen, setEditOpen] = useState(false);
-  const [editName, setEditName] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editFarmName, setEditFarmName] = useState("");
   const [editState, setEditState] = useState("");
   const [editLga, setEditLga] = useState("");
@@ -64,7 +77,10 @@ export default function Profile() {
   const [editSuccess, setEditSuccess] = useState(false);
 
   function openEdit() {
-    setEditName(user?.name ?? "");
+    const nameParts = (user?.name ?? "").trim().split(" ");
+    setEditFirstName(nameParts[0] ?? "");
+    setEditLastName(nameParts.slice(1).join(" ") ?? "");
+    setEditPhone(user?.phoneNumber ?? "");
     setEditFarmName(user?.farmName ?? "");
     setEditState(user?.location_state ?? "");
     setEditLga(user?.location_lga ?? "");
@@ -75,12 +91,14 @@ export default function Profile() {
   }
 
   async function handleEditSave() {
-    if (!editName.trim()) { setEditError("Full name is required."); return; }
+    if (!editFirstName.trim()) { setEditError("First name is required."); return; }
     setEditError("");
     setEditLoading(true);
     try {
       await usersApi.updateUser({
-        fullName: editName.trim(),
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim() || undefined,
+        phoneNumber: editPhone.trim() || undefined,
         farmName: editFarmName.trim() || undefined,
         locationState: editState.trim() || undefined,
         locationLga: editLga.trim() || undefined,
@@ -269,8 +287,18 @@ export default function Profile() {
                 </button>
               </div>
               <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">First Name *</label>
+                    <input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} placeholder="e.g. Adebayo" className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Last Name</label>
+                    <input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} placeholder="e.g. Okonkwo" className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:border-[#0D631B] focus:bg-white transition-colors" />
+                  </div>
+                </div>
                 {[
-                  { label: "Full Name *", value: editName,    set: setEditName,    placeholder: "e.g. Adebayo Okonkwo" },
+                  { label: "Phone Number", value: editPhone,   set: setEditPhone,   placeholder: "+234 800 000 0000" },
                   { label: "Farm Name",   value: editFarmName, set: setEditFarmName, placeholder: "e.g. Okonkwo Farms" },
                   { label: "State",       value: editState,   set: setEditState,   placeholder: "e.g. Ogun" },
                   { label: "LGA",         value: editLga,     set: setEditLga,     placeholder: "e.g. Abeokuta North" },
@@ -353,6 +381,108 @@ export default function Profile() {
                 </motion.div>
               ))}
             </div>
+
+            {/* Link Bank Account when not set */}
+            {!user?.bank_name && (
+              <div className="mt-5 pt-5 border-t border-gray-100">
+                {!bankLinkOpen ? (
+                  <button
+                    onClick={() => {
+                      setBankLinkOpen(true);
+                      setBankLinkCode("");
+                      setBankLinkAccNumber("");
+                      setBankLinkAccName("");
+                      setBankLinkVerifyError("");
+                      setBankLinkError("");
+                      walletApi.getBanks()
+                        .then((res) => setBankLinkBanks(res.banks))
+                        .catch(() => {});
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition-colors"
+                  >
+                    <i className="ri-bank-line" /> Link Bank Account
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-900">Link Bank Account</p>
+                      <button onClick={() => setBankLinkOpen(false)} className="text-gray-400 hover:text-gray-600">
+                        <i className="ri-close-line" />
+                      </button>
+                    </div>
+                    <select
+                      value={bankLinkCode}
+                      onChange={(e) => { setBankLinkCode(e.target.value); setBankLinkAccName(""); setBankLinkVerifyError(""); }}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B] bg-white"
+                    >
+                      <option value="">Select bank…</option>
+                      {bankLinkBanks.map((b, i) => <option key={`${b.code}-${i}`} value={b.code}>{b.name}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        maxLength={10}
+                        placeholder="10-digit account number"
+                        value={bankLinkAccNumber}
+                        onChange={(e) => { setBankLinkAccNumber(e.target.value.replace(/\D/g, "")); setBankLinkAccName(""); setBankLinkVerifyError(""); }}
+                        className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#0D631B]"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!bankLinkCode) { setBankLinkVerifyError("Select a bank."); return; }
+                          if (bankLinkAccNumber.length !== 10) { setBankLinkVerifyError("10 digits required."); return; }
+                          setBankLinkVerifying(true);
+                          setBankLinkVerifyError("");
+                          setBankLinkAccName("");
+                          try {
+                            const res = await walletApi.verifyBank(bankLinkCode, bankLinkAccNumber);
+                            if (res.success) setBankLinkAccName(res.data.account_name);
+                            else setBankLinkVerifyError(res.message ?? "Verification failed.");
+                          } catch (e) {
+                            setBankLinkVerifyError(e instanceof Error ? e.message : "Verification failed.");
+                          } finally {
+                            setBankLinkVerifying(false);
+                          }
+                        }}
+                        disabled={bankLinkVerifying || bankLinkAccNumber.length !== 10 || !bankLinkCode}
+                        className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {bankLinkVerifying ? <i className="ri-loader-4-line animate-spin" /> : "Verify"}
+                      </button>
+                    </div>
+                    {bankLinkVerifyError && <p className="text-red-500 text-xs">{bankLinkVerifyError}</p>}
+                    {bankLinkAccName && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl border border-green-100 text-xs">
+                        <i className="ri-checkbox-circle-line text-[#0D631B]" />
+                        <span className="font-semibold text-gray-900">{bankLinkAccName}</span>
+                      </div>
+                    )}
+                    {bankLinkError && <p className="text-red-500 text-xs p-2 bg-red-50 rounded-xl">{bankLinkError}</p>}
+                    <button
+                      onClick={async () => {
+                        if (!bankLinkAccName) { setBankLinkError("Verify your account first."); return; }
+                        const bankName = bankLinkBanks.find((b) => b.code === bankLinkCode)?.name ?? bankLinkCode;
+                        setBankLinkSaving(true);
+                        setBankLinkError("");
+                        try {
+                          await usersApi.updateUser({ bankName, bankAccountNumber: bankLinkAccNumber, bankAccountName: bankLinkAccName });
+                          await refreshUser();
+                          setBankLinkOpen(false);
+                        } catch (e) {
+                          setBankLinkError(e instanceof Error ? e.message : "Failed to save.");
+                        } finally {
+                          setBankLinkSaving(false);
+                        }
+                      }}
+                      disabled={bankLinkSaving || !bankLinkAccName}
+                      className="w-full py-2.5 rounded-xl bg-[#0D631B] text-white text-sm font-semibold hover:bg-[#0a4f15] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {bankLinkSaving ? <><i className="ri-loader-4-line animate-spin" /> Saving…</> : "Save Bank Account"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {!user?.liveness_verified && (
               <div className="mt-5 pt-5 border-t border-gray-100 space-y-3">
